@@ -25,6 +25,12 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use('/uploads', express.static(UPLOADS_DIR));
 app.use('/results', express.static(RESULTS_DIR));
 
+// Serve Frontend Static Files
+const FRONTEND_DIST = path.join(path.resolve(process.cwd(), '..'), 'frontend', 'dist');
+if (fs.existsSync(FRONTEND_DIST)) {
+  app.use(express.static(FRONTEND_DIST));
+}
+
 // Configure Multer for Video Uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
@@ -280,9 +286,23 @@ app.put('/api/flags/:id/resolve', async (req, res) => {
   }
 });
 
+// SPA Fallback to index.html
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/results')) {
+    return next();
+  }
+  const indexFile = path.join(FRONTEND_DIST, 'index.html');
+  if (fs.existsSync(indexFile)) {
+    return res.sendFile(indexFile);
+  }
+  next();
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`✓ Express.js Fisheries Portal API running on http://localhost:${PORT}`);
-  console.log(`✓ API docs available at http://localhost:${PORT}/api/health`);
+  console.log(`✓ Web Portal & App available at http://localhost:${PORT}`);
+  console.log(`✓ API health check at http://localhost:${PORT}/api/health`);
 });
+
 

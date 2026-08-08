@@ -4,12 +4,43 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Fisheries Monitoring Review Portal</title>
-    <link rel="stylesheet" href="/design/_ds/industry-3edc0a27-c282-4558-b366-224e41c8c992/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700&display=swap" rel="stylesheet">
     <style>
+      :root {
+        --color-bg: #0b0f19;
+        --color-surface: #151d30;
+        --color-surface-hover: #1e2942;
+        --color-text: #f8fafc;
+        --color-text-muted: #94a3b8;
+        --color-accent: #38bdf8;
+        --color-accent-600: #0284c7;
+        --color-accent-700: #0369a1;
+        --color-divider: rgba(255, 255, 255, 0.12);
+        --color-danger: #ef4444;
+        --color-success: #10b981;
+        --color-warning: #f59e0b;
+        --color-dolphin: #d946ef;
+        
+        --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+        --font-heading: 'Outfit', 'Inter', system-ui, sans-serif;
+        
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-5: 24px;
+        --space-6: 32px;
+        
+        --radius: 8px;
+        --radius-lg: 12px;
+      }
+
       * { box-sizing: border-box; }
-      body { margin: 0; padding: 0; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); }
-      a { color: var(--color-accent-700); text-decoration: none; }
-      a:hover { color: var(--color-accent); }
+      body { margin: 0; padding: 0; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); min-height: 100vh; }
+      a { color: var(--color-accent); text-decoration: none; }
+      a:hover { color: var(--color-accent-600); }
       
       .nav {
         display: flex;
