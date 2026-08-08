@@ -10,9 +10,12 @@ A full-stack web application for monitoring and reviewing fishing vessel activit
 │   ├── database.js       # SQLite database setup
 │   ├── seedData.js       # Database seeding script
 │   ├── routes/           # API route handlers
+│   │   ├── auth.js
 │   │   ├── vessels.js
 │   │   ├── recordings.js
 │   │   └── flags.js
+│   ├── middleware/
+│   │   └── auth.js
 │   └── package.json
 │
 ├── frontend/             # React + Vite web application
@@ -67,6 +70,10 @@ cd ..
 
 This creates the SQLite database at `backend/data/portal.db` and populates it with sample vessels, recordings, and flags.
 
+Seeded login accounts:
+- `mokafor` / `demo123`
+- `jtaumata` / `demo123`
+
 ### 3. Start Development Servers
 
 **Option A: Run both servers concurrently**
@@ -93,6 +100,13 @@ npm run dev:frontend
 - **Health Check**: http://localhost:3000/api/health
 
 ## API Endpoints
+
+### Authentication
+- `POST /api/auth/login` - Login and receive token
+- `POST /api/auth/logout` - Logout current token
+- `GET /api/auth/me` - Current user profile
+
+All data endpoints below require `Authorization: Bearer <token>`.
 
 ### Vessels
 - `GET /api/vessels` - Get all vessels
@@ -148,6 +162,12 @@ npm run dev:frontend
 ### Reviews
 - id, vessel_id, reviewed_by, status, compliance_score, notes
 
+### Users
+- id, username, password, display_name, role, grade
+
+### User Sessions
+- id, user_id, token, created_at, expires_at
+
 ## Environment Variables
 
 Create `.env` in the backend directory (optional, defaults are fine for development):
@@ -161,7 +181,10 @@ DATABASE_PATH=./data/portal.db
 
 ### Adding New Vessels
 ```bash
+TOKEN="<paste token from /api/auth/login>"
+
 curl -X POST http://localhost:3000/api/vessels \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"FV New Ship","imo":"9999999","licence":"NZ-TR-9999","gear":"Trawl"}'
 ```
@@ -169,6 +192,7 @@ curl -X POST http://localhost:3000/api/vessels \
 ### Creating a Flag
 ```bash
 curl -X POST http://localhost:3000/api/flags \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "recording_id":1,
@@ -182,6 +206,7 @@ curl -X POST http://localhost:3000/api/flags \
 ### Resolving a Flag
 ```bash
 curl -X PUT http://localhost:3000/api/flags/1/resolve \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"resolved_by":"M. Okafor","resolution":"Net repaired in port"}'
 ```

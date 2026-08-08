@@ -1,6 +1,6 @@
 import { all, get, run } from '../database.js';
 
-export function getFlags() {
+export function getFlags(userId) {
   return new Promise((resolve, reject) => {
     all(`
       SELECT 
@@ -11,28 +11,42 @@ export function getFlags() {
       FROM flags f
       JOIN recordings r ON f.recording_id = r.id
       JOIN vessels v ON r.vessel_id = v.id
-      WHERE f.resolved = 0
+      WHERE f.resolved = 0 AND v.user_id = ?
       ORDER BY f.created_at DESC
-    `)
+    `, [userId])
       .then(resolve)
       .catch(reject);
   });
 }
 
-export function getFlagsByRecording(recordingId) {
+export function getFlagsByRecording(recordingId, userId) {
   return new Promise((resolve, reject) => {
     all(`
-      SELECT *
-      FROM flags
-      WHERE recording_id = ?
+      SELECT f.*
+      FROM flags f
+      JOIN recordings r ON f.recording_id = r.id
+      JOIN vessels v ON r.vessel_id = v.id
+      WHERE f.recording_id = ? AND v.user_id = ?
       ORDER BY timestamp_seconds ASC
-    `, [recordingId])
+    `, [recordingId, userId])
       .then(resolve)
       .catch(reject);
   });
 }
 
-export function createFlag(data) {
+export async function createFlag(data, userId) {
+  const recording = await get(
+    `SELECT r.id
+     FROM recordings r
+     JOIN vessels v ON r.vessel_id = v.id
+     WHERE r.id = ? AND v.user_id = ?`,
+    [data.recording_id, userId]
+  );
+
+  if (!recording) {
+    throw new Error('Recording not found for this account');
+  }
+
   return new Promise((resolve, reject) => {
     run(`
       INSERT INTO flags (recording_id, flag_type, severity, timestamp_seconds, description, camera_id, resolved)
@@ -55,14 +69,14 @@ export function createFlag(data) {
         FROM flags f
         JOIN recordings r ON f.recording_id = r.id
         JOIN vessels v ON r.vessel_id = v.id
-        WHERE f.id = ?
-      `, [result.id]))
+        WHERE f.id = ? AND v.user_id = ?
+      `, [result.id, userId]))
       .then(resolve)
       .catch(reject);
   });
 }
 
-export function resolveFlag(id, data) {
+export function resolveFlag(id, data, userId) {
   return new Promise((resolve, reject) => {
     run(`
       UPDATE flags
@@ -72,7 +86,13 @@ export function resolveFlag(id, data) {
         resolution = ?,
         resolved_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `, [data.resolved_by, data.resolution, id])
+      AND recording_id IN (
+        SELECT r.id
+        FROM recordings r
+        JOIN vessels v ON r.vessel_id = v.id
+        WHERE v.user_id = ?
+      )
+    `, [data.resolved_by, data.resolution, id, userId])
       .then(() => get(`
         SELECT 
           f.*,
@@ -82,8 +102,8 @@ export function resolveFlag(id, data) {
         FROM flags f
         JOIN recordings r ON f.recording_id = r.id
         JOIN vessels v ON r.vessel_id = v.id
-        WHERE f.id = ?
-      `, [id]))
+        WHERE f.id = ? AND v.user_id = ?
+      `, [id, userId]))
       .then(resolve)
       .catch(reject);
   });

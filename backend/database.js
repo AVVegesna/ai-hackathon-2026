@@ -21,10 +21,36 @@ db.configure('busyTimeout', 5000);
 
 export function initializeDatabase() {
   db.serialize(() => {
+    // Accounts table for login
+    db.run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        role TEXT DEFAULT 'Observer',
+        grade TEXT DEFAULT 'Grade 2',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Session table for token-based auth
+    db.run(`
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token TEXT UNIQUE NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )
+    `);
+
     // Vessels table
     db.run(`
       CREATE TABLE IF NOT EXISTS vessels (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
         name TEXT NOT NULL,
         imo TEXT UNIQUE NOT NULL,
         licence TEXT UNIQUE NOT NULL,
@@ -34,7 +60,8 @@ export function initializeDatabase() {
         status TEXT DEFAULT 'active',
         last_upload DATETIME,
         last_ais_ping DATETIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
       )
     `);
 
@@ -78,16 +105,57 @@ export function initializeDatabase() {
     db.run(`
       CREATE TABLE IF NOT EXISTS reviews (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
         vessel_id INTEGER NOT NULL,
+        recording_id INTEGER,
         reviewed_by TEXT,
         status TEXT DEFAULT 'pending',
         compliance_score INTEGER,
         notes TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME,
-        FOREIGN KEY (vessel_id) REFERENCES vessels(id)
+        FOREIGN KEY (vessel_id) REFERENCES vessels(id),
+        FOREIGN KEY (recording_id) REFERENCES recordings(id),
+        FOREIGN KEY (user_id) REFERENCES users(id)
       )
     `);
+
+    // Lightweight migrations for existing DB files.
+    db.run('ALTER TABLE vessels ADD COLUMN user_id INTEGER', (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error migrating vessels.user_id:', err.message);
+      }
+    });
+
+    db.run('ALTER TABLE reviews ADD COLUMN user_id INTEGER', (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error migrating reviews.user_id:', err.message);
+      }
+    });
+
+    db.run('ALTER TABLE reviews ADD COLUMN recording_id INTEGER', (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error migrating reviews.recording_id:', err.message);
+      }
+    });
+
+    // Ensure there is always a default user for legacy rows.
+    db.run(
+      `INSERT OR IGNORE INTO users (username, password, display_name, role, grade)
+       VALUES ('mokafor', 'demo123', 'M. Okafor', 'Observer', 'Grade 2')`
+    );
+
+    db.run(
+      `UPDATE vessels
+       SET user_id = (SELECT id FROM users WHERE username = 'mokafor')
+       WHERE user_id IS NULL`
+    );
+
+    db.run(
+      `UPDATE reviews
+       SET user_id = (SELECT id FROM users WHERE username = 'mokafor')
+       WHERE user_id IS NULL`
+    );
 
     console.log('✓ Database tables initialized');
   });
