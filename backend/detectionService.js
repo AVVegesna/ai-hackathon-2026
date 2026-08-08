@@ -21,46 +21,45 @@ export function runDetectionTask(videoId, inputPath, outputPath, modelName = 'do
     current_count: 0
   };
 
-  // The directory to put on sys.path — the one containing backend/detector.py,
-  // since that is what the generated script imports. Resolved by looking for
-  // the file rather than hardcoded, because it has lived in three different
-  // places: PythonScript/ in this repo, the repo root, and (on the original
-  // author's machine) an outer folder above the checkout. DETECTOR_ROOT wins
-  // when it is somewhere else again.
-  const candidateRoots = [
+  // The directory to put on sys.path — whichever one actually holds
+  // detector.py. Resolved rather than hardcoded because it has moved three
+  // times already (PythonScript/, PythonScript/backend/, and a folder outside
+  // the checkout on the original author's machine). DETECTOR_ROOT wins if it
+  // ends up somewhere else again.
+  const candidateDirs = [
     process.env.DETECTOR_ROOT,
-    path.resolve(BASE_DIR, '..', 'PythonScript'), // PythonScript/backend/detector.py
-    path.resolve(BASE_DIR, '..'), // repo root — backend/detector.py
-    path.resolve(BASE_DIR, '..', '..'), // outer folder above the checkout
+    path.resolve(BASE_DIR, '..', 'PythonScript'),
+    path.resolve(BASE_DIR, '..', 'PythonScript', 'backend'),
+    path.resolve(BASE_DIR, '..'),
   ].filter(Boolean);
 
-  const detectorRoot = candidateRoots.find((root) =>
-    fs.existsSync(path.join(root, 'backend', 'detector.py'))
+  const pythonScriptDir = candidateDirs.find((dir) =>
+    fs.existsSync(path.join(dir, 'detector.py'))
   );
 
-  if (!detectorRoot) {
+  // Fail immediately and name every path tried. Without this the import error
+  // surfaces as an opaque exit code and the task hangs at 'starting'.
+  if (!pythonScriptDir) {
     activeTasks[videoId] = {
       status: 'failed',
       progress: 100,
       message:
-        'backend/detector.py was not found. Looked in: ' +
-        candidateRoots.join(', ') +
+        'detector.py was not found. Looked in: ' +
+        candidateDirs.join(', ') +
         '. Set DETECTOR_ROOT to the directory that contains it.',
       current_count: 0
     };
     return;
   }
-
-  const projectRootDir = detectorRoot;
   
   // Python script execution to run detector.py
   const pythonScript = `
 import sys
 import json
 import os
-sys.path.insert(0, r"${projectRootDir}")
+sys.path.insert(0, r"${pythonScriptDir}")
 
-from backend.detector import process_video_frames
+from detector import process_video_frames
 
 def progress_cb(pct, status, msg, current_count=0):
     print(json.dumps({
@@ -89,9 +88,9 @@ sys.exit(0)
 
   // macOS and most modern distros ship `python3` and no bare `python`, so
   // spawning 'python' fails with ENOENT before the detector is ever reached.
-  // Honour an explicit override, then fall back to python3.
+  // PYTHON_BIN points at the venv interpreter that has the model deps.
   const interpreter = process.env.PYTHON_BIN || 'python3';
-  const pyProc = spawn(interpreter, ['-c', pythonScript], { cwd: projectRootDir });
+  const pyProc = spawn(interpreter, ['-c', pythonScript], { cwd: pythonScriptDir });
 
   pyProc.stdout.on('data', (data) => {
     const lines = data.toString().split('\n');
