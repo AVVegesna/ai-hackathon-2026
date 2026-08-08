@@ -1,5 +1,6 @@
 // Seed data. The schema lives in database.js — this file must never redeclare it,
 // or the two definitions drift (which is how media_url and due_at went missing).
+import { fileURLToPath } from 'url';
 import db, { initializeDatabase, migrateDatabase, run } from './database.js';
 
 
@@ -50,14 +51,13 @@ const seedFlags = [
   { recording_id: 8, flag_type: 'Foreign material', severity: 'Low', timestamp_seconds: 1500, description: 'Plastic waste in catch', camera_id: 1, days_ago: 0, assigned_to: null },
 ];
 
-async function seedDatabase() {
+export async function seedDatabase() {
   try {
     console.log('🌱 Seeding database...');
-    
-    initializeDatabase();
 
-    // Wait a moment for tables to be created
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // initializeDatabase resolves once the last statement has run, so there is
+    // nothing left to wait out here.
+    await initializeDatabase();
     await migrateDatabase();
 
     // Clear existing data
@@ -122,12 +122,21 @@ async function seedDatabase() {
     console.log(`   ✓ ${seedRecordings.length} recordings`);
     console.log(`   ✓ ${seedFlags.length} flags`);
     
-    db.close();
-    process.exit(0);
   } catch (error) {
     console.error('❌ Error seeding database:', error);
-    process.exit(1);
+    throw error;
   }
 }
 
-seedDatabase();
+// Only take over the process when run directly (`npm run seed`). The server
+// imports this to seed a fresh deployment, and must not have its process exited
+// or its shared database connection closed underneath it.
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+if (isMain) {
+  seedDatabase()
+    .then(() => {
+      db.close();
+      process.exit(0);
+    })
+    .catch(() => process.exit(1));
+}

@@ -20,6 +20,13 @@ cd frontend && npm install && npm run dev                 # app  :5173
 Detection needs **Python 3.11 or 3.12** and its own venv — 3.13+ has no
 `torch`/`ultralytics` wheels. See [SETUP.md](SETUP.md#3-detection-model-optional).
 
+Node 22, pinned in `.tool-versions`. The API seeds demo data on first start when
+the database is empty.
+
+Set `DETECTION_ENABLED=false` to run without the Python stack; everything except
+detection still works, and the UI reports detection as not run rather than
+implying a clean result.
+
 ## Screens
 
 | Route | Purpose |

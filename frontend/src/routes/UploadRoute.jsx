@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { api } from '../lib/api'
+import { api, mediaUrl } from '../lib/api'
 import { timecode } from '../lib/format'
 import { EmptyState, ErrorState, Skeleton } from '../components/ui/States'
 import CompareVideos from '../components/CompareVideos'
@@ -19,6 +19,51 @@ import VideoThumb from '../components/VideoThumb'
 const POLL_MS = 900
 const TERMINAL = ['completed', 'failed']
 
+// The detector's model registry, mirrored for the picker. The two open-vocab
+// YOLO-World models lead because protected-species bycatch is what the portal
+// exists to catch; the fish counters are there for catch-composition context.
+const MODELS = [
+  {
+    value: 'dolphin',
+    label: 'Dolphin & marine mammal',
+    hint: 'Open-vocabulary. Targets dolphins, porpoises and other marine mammals.',
+  },
+  {
+    value: 'albatross',
+    label: 'Albatross & seabird',
+    hint: 'Open-vocabulary. Targets albatross, petrels and other seabirds.',
+  },
+  { value: 'tilapia', label: 'Tilapia counter', hint: 'Trained fish counter.' },
+  {
+    value: 'grayscale',
+    label: 'Grayscale fish detector',
+    hint: 'Tuned for low-colour underwater footage.',
+  },
+  { value: 'coco', label: 'Standard YOLOv8 (COCO)', hint: 'General objects, not fisheries-specific.' },
+]
+
+// Protected species the detector reports on regardless of which model ran — a
+// fish count that catches a dolphin still has to raise it. Keyed by the meta
+// fields the detector writes.
+const PROTECTED_SPECIES = [
+  {
+    key: 'dolphin',
+    noun: 'dolphin',
+    badge: 'badge-dolphin',
+    peak: 'peak_dolphin_count',
+    frames: 'total_dolphin_frames',
+    events: 'dolphin_events',
+  },
+  {
+    key: 'albatross',
+    noun: 'albatross',
+    badge: 'badge-albatross',
+    peak: 'peak_albatross_count',
+    frames: 'total_albatross_frames',
+    events: 'albatross_events',
+  },
+]
+
 export default function UploadRoute() {
   const qc = useQueryClient()
   const fileInput = useRef(null)
@@ -30,6 +75,7 @@ export default function UploadRoute() {
   const [selected, setSelected] = useState(null)
   const [status, setStatus] = useState(null)
   const [confidence, setConfidence] = useState(0.25)
+  const [modelName, setModelName] = useState('dolphin')
   const [vesselId, setVesselId] = useState('')
 
   const videos = useQuery({ queryKey: ['videos'], queryFn: api.videos })
@@ -44,8 +90,14 @@ export default function UploadRoute() {
   })
 
   const selectedVideo = (videos.data || []).find((v) => v.video_id === selected)
-  const originalUrl = selectedVideo?.url || (selected ? `/uploads/${selected}.mp4` : null)
-  const processedUrl = results.data?.processed_video_url || null
+  // Media is served as static files by the API, so it goes through mediaUrl
+  // rather than the /api path — and picks up VITE_API_BASE_URL when the
+  // frontend is hosted apart from the API.
+  const rawOriginalUrl = selectedVideo?.url || (selected ? `/uploads/${selected}.mp4` : null)
+  const originalUrl = rawOriginalUrl ? mediaUrl(rawOriginalUrl) : null
+  const processedUrl = results.data?.processed_video_url
+    ? mediaUrl(results.data.processed_video_url)
+    : null
 
   // Poll only while a run is genuinely in flight, and stop the moment it
   // reaches a terminal state.
@@ -66,6 +118,22 @@ export default function UploadRoute() {
     }, POLL_MS)
     return () => clearInterval(t)
   }, [selected, status, qc])
+
+  // Opening footage that already has a result starts the controls from the run
+  // that produced it. Otherwise the panel reads "Ran Albatross & Seabird" while
+  // the picker still says Dolphin, and Re-run would quietly change species.
+  const completedModel = status?.status === 'completed' ? status.result?.model_name : undefined
+  const completedConfidence =
+    status?.status === 'completed' ? status.result?.confidence_threshold : undefined
+
+  useEffect(() => {
+    if (completedModel && MODELS.some((m) => m.value === completedModel)) {
+      setModelName(completedModel)
+    }
+    if (typeof completedConfidence === 'number') {
+      setConfidence(completedConfidence)
+    }
+  }, [selected, completedModel, completedConfidence])
 
   const upload = useCallback(
     async (file) => {
@@ -101,18 +169,39 @@ export default function UploadRoute() {
     setStatus({ status: 'starting', progress: 0, message: 'Requesting detection…' })
     try {
       await api.startDetection(selected, {
-        model_name: 'dolphin',
+        model_name: modelName,
         confidence,
         vessel_id: vesselId || undefined,
       })
     } catch (err) {
       setStatus({ status: 'failed', progress: 100, message: err.message })
     }
-  }, [selected, confidence, vesselId])
+  }, [selected, modelName, confidence, vesselId])
 
   const running = status && !TERMINAL.includes(status.status)
   const failed = status?.status === 'failed'
   const result = status?.status === 'completed' ? status.result : null
+
+  // Which model produced this result — not which one the picker currently
+  // shows, since the re-run control is free to have moved on since.
+  const ranModel = result?.model_name ?? modelName
+
+  // Report a species when the run targeted it, or when it was detected anyway.
+  // A zero count reads differently in each case: "none found" only means
+  // something if the model was looking. Results written before seabird
+  // detection existed simply carry no albatross fields and report nothing.
+  const reportedSpecies = (result ? PROTECTED_SPECIES : []).flatMap((s) => {
+    const peakValue = result[s.peak] ?? 0
+    const framesValue = result[s.frames] ?? 0
+    if (ranModel !== s.key && peakValue === 0) return []
+    return [{ ...s, peakValue, framesValue }]
+  })
+
+  // One chronological list across species, so a run that caught both reads in
+  // the order a reviewer would scrub through it, not as two separate tables.
+  const detectedEvents = (result ? PROTECTED_SPECIES : [])
+    .flatMap((s) => (result[s.events] || []).map((ev) => ({ ...ev, species: s })))
+    .sort((a, b) => a.timestamp - b.timestamp)
 
   return (
     <div className="page">
@@ -186,6 +275,28 @@ export default function UploadRoute() {
                       Nothing is determined automatically — every flag it raises still needs a
                       reviewer's determination.
                     </p>
+
+                    {/* Which model runs decides which species can be found at
+                        all, so it is the first choice, not a buried option. */}
+                    <div className="field">
+                      <label htmlFor="model">Detection model</label>
+                      <select
+                        id="model"
+                        className="select"
+                        value={modelName}
+                        onChange={(e) => setModelName(e.target.value)}
+                        aria-describedby="model-hint"
+                      >
+                        {MODELS.map((m) => (
+                          <option key={m.value} value={m.value}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="field-hint" id="model-hint">
+                        {MODELS.find((m) => m.value === modelName)?.hint}
+                      </span>
+                    </div>
 
                     {/* Confidence is a recall/precision trade-off, so say which
                         way the slider moves rather than just showing a number. */}
@@ -287,11 +398,41 @@ export default function UploadRoute() {
 
                 {result ? (
                   <div className="col">
+                    {/* Name the run that produced these figures. Once re-running
+                        can change the model, "peak albatross: 0" is meaningless
+                        without knowing whether that run was looking for one. */}
+                    {result.model_label ? (
+                      <p className="muted" style={{ fontSize: 12 }}>
+                        Ran <b>{result.model_label}</b>
+                        {typeof result.confidence_threshold === 'number'
+                          ? ` at a ${result.confidence_threshold.toFixed(2)} confidence threshold`
+                          : null}
+                        .
+                      </p>
+                    ) : null}
+
                     {/* Re-evaluation. A first pass at one threshold is not the
                         last word: a reviewer who suspects the model missed
                         something needs to run it again lower without
                         re-uploading. Flags are added to the same recording. */}
                     <div className="rerun">
+                      {/* A reviewer who suspects a different species is present
+                          needs to swap the model here too, not re-upload. */}
+                      <div className="field">
+                        <label htmlFor="rerun-model">Model</label>
+                        <select
+                          id="rerun-model"
+                          className="select"
+                          value={modelName}
+                          onChange={(e) => setModelName(e.target.value)}
+                        >
+                          {MODELS.map((m) => (
+                            <option key={m.value} value={m.value}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <div className="field grow">
                         <label htmlFor="rerun-confidence">
                           Re-evaluate at a different threshold
@@ -320,17 +461,24 @@ export default function UploadRoute() {
                     </div>
 
                     <div className="stats">
-                      <Stat
-                        label="Peak dolphin count"
-                        value={result.peak_dolphin_count ?? 0}
-                        note="Most in a single frame"
-                        alert={(result.peak_dolphin_count ?? 0) > 0}
-                      />
-                      <Stat
-                        label="Frames with dolphin"
-                        value={result.total_dolphin_frames ?? 0}
-                        note={`of ${result.total_frames ?? 0} sampled`}
-                      />
+                      {/* Report a species when the run targeted it or when it
+                          turned up anyway. Suppressing an untargeted species
+                          that was detected would hide the bycatch. */}
+                      {reportedSpecies.map((s) => (
+                        <React.Fragment key={s.key}>
+                          <Stat
+                            label={`Peak ${s.noun} count`}
+                            value={s.peakValue}
+                            note="Most in a single frame"
+                            alert={s.peakValue > 0}
+                          />
+                          <Stat
+                            label={`Frames with ${s.noun}`}
+                            value={s.framesValue}
+                            note={`of ${result.total_frames ?? 0} sampled`}
+                          />
+                        </React.Fragment>
+                      ))}
                       <Stat
                         label="Peak all species"
                         value={result.peak_count ?? 0}
@@ -358,6 +506,7 @@ export default function UploadRoute() {
                     <h3 className="kicker">Detections across the clip</h3>
                     <DetectionTimeline
                       dolphinCounts={result.dolphin_frame_counts}
+                      albatrossCounts={result.albatross_frame_counts}
                       fishCounts={result.fish_frame_counts}
                       totalCounts={result.frame_counts}
                       durationSeconds={result.duration_seconds}
@@ -365,8 +514,12 @@ export default function UploadRoute() {
                     />
                     <div className="legend">
                       <span>
-                        <i style={{ background: 'var(--sev-high)' }} />
+                        <i style={{ background: 'var(--species-dolphin)' }} />
                         Dolphin present
+                      </span>
+                      <span>
+                        <i style={{ background: 'var(--species-albatross)' }} />
+                        Albatross present
                       </span>
                       <span>
                         <i style={{ background: 'var(--accent)' }} />
@@ -374,26 +527,32 @@ export default function UploadRoute() {
                       </span>
                     </div>
 
-                    {(result.dolphin_events || []).length > 0 ? (
+                    {detectedEvents.length > 0 ? (
                       <>
                         <h3 className="kicker">
-                          Flags raised — {result.dolphin_events.length} event
-                          {result.dolphin_events.length === 1 ? '' : 's'}
+                          Flags raised — {detectedEvents.length} event
+                          {detectedEvents.length === 1 ? '' : 's'}
                         </h3>
                         <div className="table-wrap">
                           <table className="data">
                             <thead>
                               <tr>
                                 <th scope="col">At</th>
+                                <th scope="col">Species</th>
                                 <th scope="col">Count</th>
                                 <th scope="col">Proposed flag</th>
                                 <th scope="col" />
                               </tr>
                             </thead>
                             <tbody>
-                              {result.dolphin_events.map((ev, i) => (
-                                <tr key={i} className="static-row">
+                              {detectedEvents.map((ev, i) => (
+                                <tr key={`${ev.species.key}-${i}`} className="static-row">
                                   <td className="mono-time">{timecode(ev.timestamp)}</td>
+                                  <td>
+                                    <span className={`badge ${ev.species.badge}`}>
+                                      {ev.species.noun}
+                                    </span>
+                                  </td>
                                   <td>{ev.count}</td>
                                   <td>
                                     <span className="badge badge-high">
@@ -418,21 +577,26 @@ export default function UploadRoute() {
                             </tbody>
                           </table>
                         </div>
-                        {/* The detector writes the first five events to the flags
-                            table, so be explicit when the list is longer. */}
-                        {result.dolphin_events.length > 5 ? (
-                          <p className="field-hint">
-                            The first 5 events were written to the review queue. The rest are shown
-                            here but not yet raised as flags.
-                          </p>
-                        ) : null}
+                        {/* Every distinct sighting is raised, but a continuous
+                            sighting spans many sampled frames and produces one
+                            flag rather than one per frame. Say so, or the event
+                            count above looks like it disagrees with the queue. */}
+                        <p className="field-hint">
+                          Consecutive detections are grouped into distinct sightings, so the review
+                          queue holds one flag per sighting rather than one per event listed here.
+                        </p>
                         <p>
                           <Link to="/queue?severity=High">Review the flags this raised →</Link>
                         </p>
                       </>
                     ) : (
                       <div className="row">
-                        <span className="badge badge-ok">No dolphin detected</span>
+                        <span className="badge badge-ok">
+                          No{' '}
+                          {PROTECTED_SPECIES.find((s) => s.key === ranModel)?.noun ??
+                            'protected species'}{' '}
+                          detected
+                        </span>
                         <span className="muted" style={{ fontSize: 12 }}>
                           Nothing was added to the review queue.
                         </span>

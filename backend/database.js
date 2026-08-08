@@ -1,13 +1,9 @@
 import sqlite3 from 'sqlite3';
-import fs from 'fs';
-import path from 'path';
+import { DB_PATH, ensureDirs } from './paths.js';
 
-const dbPath = path.join(process.cwd(), 'data', 'portal.db');
+const dbPath = DB_PATH;
 
-// Ensure data directory exists
-if (!fs.existsSync(path.join(process.cwd(), 'data'))) {
-  fs.mkdirSync(path.join(process.cwd(), 'data'));
-}
+ensureDirs();
 
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
@@ -19,10 +15,12 @@ const db = new sqlite3.Database(dbPath, (err) => {
 
 db.configure('busyTimeout', 5000);
 
-export function initializeDatabase() {
-  db.serialize(() => {
-    // Vessels table
-    db.run(`
+// Every statement run at startup, in order. Kept as data rather than a series
+// of inline db.run calls so initializeDatabase can resolve once the last one
+// has actually completed — the seed-on-empty check needs the tables to exist.
+const SCHEMA = [
+  // Vessels table
+  `
       CREATE TABLE IF NOT EXISTS vessels (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -36,10 +34,9 @@ export function initializeDatabase() {
         last_ais_ping DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
-    `);
-
-    // Recordings table
-    db.run(`
+    `,
+  // Recordings table
+  `
       CREATE TABLE IF NOT EXISTS recordings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         vessel_id INTEGER NOT NULL,
@@ -53,10 +50,9 @@ export function initializeDatabase() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (vessel_id) REFERENCES vessels(id)
       )
-    `);
-
-    // Flags table
-    db.run(`
+    `,
+  // Flags table
+  `
       CREATE TABLE IF NOT EXISTS flags (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         recording_id INTEGER NOT NULL,
@@ -72,10 +68,9 @@ export function initializeDatabase() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (recording_id) REFERENCES recordings(id)
       )
-    `);
-
-    // Reviews table
-    db.run(`
+    `,
+  // Reviews table
+  `
       CREATE TABLE IF NOT EXISTS reviews (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         vessel_id INTEGER NOT NULL,
@@ -87,11 +82,10 @@ export function initializeDatabase() {
         updated_at DATETIME,
         FOREIGN KEY (vessel_id) REFERENCES vessels(id)
       )
-    `);
-
-    // Audit log — append-only. Every determination and review writes a row here.
-    // This is the evidentiary backbone: nothing is ever updated in place.
-    db.run(`
+    `,
+  // Audit log — append-only. Every determination and review writes a row here.
+  // This is the evidentiary backbone: nothing is ever updated in place.
+  `
       CREATE TABLE IF NOT EXISTS audit_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         entity_type TEXT NOT NULL,
@@ -102,14 +96,33 @@ export function initializeDatabase() {
         vessel_id INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
-    `);
+    `,
+  `CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_flags_resolved ON flags(resolved)`,
+  `CREATE INDEX IF NOT EXISTS idx_recordings_vessel ON recordings(vessel_id)`,
+];
 
-    db.run(`CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id)`);
-    db.run(`CREATE INDEX IF NOT EXISTS idx_flags_resolved ON flags(resolved)`);
-    db.run(`CREATE INDEX IF NOT EXISTS idx_recordings_vessel ON recordings(vessel_id)`);
-
-    console.log('✓ Database tables initialized');
+export function initializeDatabase() {
+  return new Promise((resolve, reject) => {
+    db.serialize(() => {
+      SCHEMA.forEach((statement, index) => {
+        db.run(statement, (err) => {
+          if (err) return reject(err);
+          if (index === SCHEMA.length - 1) {
+            console.log('✓ Database tables initialized');
+            resolve();
+          }
+        });
+      });
+    });
   });
+}
+
+// Used to decide whether a fresh deployment needs seed data. A host with an
+// ephemeral filesystem starts every deploy with an empty database.
+export async function isDatabaseEmpty() {
+  const row = await get('SELECT COUNT(*) AS count FROM vessels');
+  return !row || row.count === 0;
 }
 
 // Additive column migrations. Existing portal.db files predate these columns,

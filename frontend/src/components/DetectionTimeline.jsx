@@ -11,6 +11,7 @@ import { timecode } from '../lib/format'
 
 export default function DetectionTimeline({
   dolphinCounts = [],
+  albatrossCounts = [],
   fishCounts = [],
   totalCounts = [],
   durationSeconds = 0,
@@ -21,15 +22,25 @@ export default function DetectionTimeline({
 
   // Prefer the split series when the detector supplied them; fall back to the
   // combined counts for older result files that only carry frame_counts.
+  // albatrossCounts is absent from results produced before seabird detection
+  // existed, so it defaults to zero rather than shifting the other series.
   const series = useMemo(() => {
-    const length = Math.max(dolphinCounts.length, fishCounts.length, totalCounts.length)
+    const length = Math.max(
+      dolphinCounts.length,
+      albatrossCounts.length,
+      fishCounts.length,
+      totalCounts.length
+    )
     if (!length) return []
     return Array.from({ length }, (_, i) => ({
       dolphin: dolphinCounts[i] ?? 0,
+      albatross: albatrossCounts[i] ?? 0,
       fish: fishCounts[i] ?? 0,
-      total: totalCounts[i] ?? (dolphinCounts[i] ?? 0) + (fishCounts[i] ?? 0),
+      total:
+        totalCounts[i] ??
+        (dolphinCounts[i] ?? 0) + (albatrossCounts[i] ?? 0) + (fishCounts[i] ?? 0),
     }))
-  }, [dolphinCounts, fishCounts, totalCounts])
+  }, [dolphinCounts, albatrossCounts, fishCounts, totalCounts])
 
   const peak = useMemo(() => Math.max(1, ...series.map((s) => s.total)), [series])
 
@@ -68,7 +79,15 @@ export default function DetectionTimeline({
           <span
             key={i}
             className="timeline-bar"
-            data-kind={s.dolphin > 0 ? 'dolphin' : s.total > 0 ? 'fish' : 'none'}
+            data-kind={
+              s.dolphin > 0
+                ? 'dolphin'
+                : s.albatross > 0
+                  ? 'albatross'
+                  : s.total > 0
+                    ? 'fish'
+                    : 'none'
+            }
             style={{ height: `${(s.total / peak) * 100}%` }}
           />
         ))}
@@ -79,7 +98,10 @@ export default function DetectionTimeline({
         {hover ? (
           <span className="timeline-readout">
             <b className="mono-time">{timecode(timeAt(hover.index))}</b>
-            {hover.dolphin > 0 ? <span className="badge badge-high">{hover.dolphin} dolphin</span> : null}
+            {hover.dolphin > 0 ? <span className="badge badge-dolphin">{hover.dolphin} dolphin</span> : null}
+            {hover.albatross > 0 ? (
+              <span className="badge badge-albatross">{hover.albatross} albatross</span>
+            ) : null}
             {hover.fish > 0 ? <span className="badge badge-neutral">{hover.fish} fish</span> : null}
             {hover.total === 0 ? <span className="muted">nothing detected</span> : null}
           </span>

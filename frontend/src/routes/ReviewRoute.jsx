@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api } from '../lib/api'
+import { api, mediaUrl } from '../lib/api'
 import { formatDate, formatDateTime, timecode, durationLabel } from '../lib/format'
 import { useSession } from '../lib/prefs'
 import VideoPlayer from '../components/VideoPlayer'
@@ -295,8 +295,10 @@ export default function ReviewRoute() {
         <div className="ws-col ws-col-center">
           <VideoPlayer
             ref={playerRef}
-            mediaUrl={f.media_url}
-            processedMediaUrl={f.processed_media_url}
+            mediaUrl={f.media_url ? mediaUrl(f.media_url) : f.media_url}
+            processedMediaUrl={
+              f.processed_media_url ? mediaUrl(f.processed_media_url) : f.processed_media_url
+            }
             camerasCount={f.cameras_count}
             flags={recordingFlags.data || []}
             activeFlagId={f.id}

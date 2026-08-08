@@ -3,13 +3,27 @@ import fs from 'fs';
 import { spawn } from 'child_process';
 import { createFlag } from './routes/flags.js';
 import { getOrCreateRecordingForUpload } from './routes/recordings.js';
+import {
+  PROJECT_ROOT,
+  PYTHON_SCRIPT_DIR,
+  UPLOADS_DIR,
+  RESULTS_DIR,
+  ensureDirs,
+  resolvePythonBin,
+} from './paths.js';
 
-const BASE_DIR = process.cwd();
-export const UPLOADS_DIR = path.join(BASE_DIR, 'uploads');
-export const RESULTS_DIR = path.join(BASE_DIR, 'results');
+export { UPLOADS_DIR, RESULTS_DIR };
 
-if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-if (!fs.existsSync(RESULTS_DIR)) fs.mkdirSync(RESULTS_DIR, { recursive: true });
+ensureDirs();
+
+// Detection is the only part of the app that needs Python, torch and ~4GB of
+// RAM. Deployments that don't carry that stack set DETECTION_ENABLED=false; the
+// app then serves everything else and reports detection as not run rather than
+// implying a clean result it never computed.
+export const DETECTION_ENABLED = process.env.DETECTION_ENABLED !== 'false';
+
+export const DETECTION_DISABLED_MESSAGE =
+  'Detection was not run — the model is not enabled in this deployment.';
 
 export const activeTasks = {};
 
@@ -43,10 +57,20 @@ export function coalesceEvents(events = [], gap = SIGHTING_GAP_SECONDS) {
 }
 
 export function runDetectionTask(videoId, inputPath, outputPath, modelName = 'dolphin', confidence = 0.15, vesselId = null) {
+  if (!DETECTION_ENABLED) {
+    activeTasks[videoId] = {
+      status: 'unavailable',
+      progress: 0,
+      message: DETECTION_DISABLED_MESSAGE,
+      current_count: 0
+    };
+    return;
+  }
+
   activeTasks[videoId] = {
     status: 'starting',
     progress: 0,
-    message: 'Initializing dolphin detection model...',
+    message: `Initializing ${modelName} detection model...`,
     current_count: 0
   };
 
@@ -57,9 +81,9 @@ export function runDetectionTask(videoId, inputPath, outputPath, modelName = 'do
   // ends up somewhere else again.
   const candidateDirs = [
     process.env.DETECTOR_ROOT,
-    path.resolve(BASE_DIR, '..', 'PythonScript'),
-    path.resolve(BASE_DIR, '..', 'PythonScript', 'backend'),
-    path.resolve(BASE_DIR, '..'),
+    PYTHON_SCRIPT_DIR,
+    path.join(PYTHON_SCRIPT_DIR, 'backend'),
+    PROJECT_ROOT,
   ].filter(Boolean);
 
   const pythonScriptDir = candidateDirs.find((dir) =>
@@ -117,8 +141,22 @@ sys.exit(0)
 
   // macOS and most modern distros ship `python3` and no bare `python`, so
   // spawning 'python' fails with ENOENT before the detector is ever reached.
-  // PYTHON_BIN points at the venv interpreter that has the model deps.
-  const interpreter = process.env.PYTHON_BIN || 'python3';
+  // resolvePythonBin probes the venv, python3 and python in turn; PYTHON_BIN
+  // overrides it outright.
+  const interpreter = resolvePythonBin();
+
+  if (!interpreter) {
+    activeTasks[videoId] = {
+      status: 'failed',
+      progress: 100,
+      message:
+        'No Python interpreter was found. Install the detector dependencies ' +
+        '(see SETUP.md) and set PYTHON_BIN if it lives somewhere unusual.',
+      current_count: 0
+    };
+    return;
+  }
+
   const pyProc = spawn(interpreter, ['-c', pythonScript], { cwd: pythonScriptDir });
 
   pyProc.stdout.on('data', (data) => {
@@ -139,20 +177,30 @@ sys.exit(0)
 
           activeTasks[videoId].status = 'completed';
           activeTasks[videoId].progress = 100;
-          activeTasks[videoId].message = 'Dolphin detection completed!';
+          activeTasks[videoId].message = 'Detection completed!';
           activeTasks[videoId].result = meta;
 
           // The detector reports a hit per sampled frame, so one continuous
           // sighting arrives as a run of events a fraction of a second apart.
           // Raising a flag for each would put a dozen near-identical items in
-          // the queue for a single dolphin, and a reviewer would have to
+          // the queue for a single animal, and a reviewer would have to
           // determine every one. Coalesce runs into sightings instead: group
           // events less than SIGHTING_GAP_SECONDS apart, keep the peak count,
           // and anchor the flag at the start of the run. Nothing is dropped —
           // distinct sightings all still produce a flag.
-          const sightings = coalesceEvents(meta.dolphin_events);
+          //
+          // Both protected species are coalesced independently, so a fish
+          // count that happens to catch a dolphin and an albatross raises a
+          // separate, correctly-labelled flag for each.
+          const detected = [
+            { noun: 'dolphin', detectedFlag: meta.has_dolphin, events: meta.dolphin_events },
+            { noun: 'albatross/seabird', detectedFlag: meta.has_albatross, events: meta.albatross_events }
+          ]
+            .filter((s) => s.detectedFlag)
+            .map((s) => ({ ...s, sightings: coalesceEvents(s.events) }))
+            .filter((s) => s.sightings.length > 0);
 
-          if (meta.has_dolphin && sightings.length > 0) {
+          if (detected.length > 0) {
             getOrCreateRecordingForUpload({
               videoId,
               mediaUrl: `/uploads/${path.basename(inputPath)}`,
@@ -161,27 +209,29 @@ sys.exit(0)
               durationSeconds: meta.duration_seconds
             })
               .then(async (recording) => {
-                for (const ev of sightings) {
-                  await createFlag({
-                    recording_id: recording.id,
-                    flag_type: 'Bycatch species',
-                    severity: 'High',
-                    timestamp_seconds: Math.round(ev.timestamp),
-                    description:
-                      `Automated detection: ${ev.count} dolphin over ` +
-                      `${(ev.last_timestamp - ev.timestamp).toFixed(1)}s ` +
-                      `from ${Math.round(ev.timestamp)}s ` +
-                      `(${ev.frames} frame${ev.frames === 1 ? '' : 's'}, ` +
-                      `confidence threshold ${confidence})`,
-                    camera_id: 1,
-                    raised_by: 'detector'
-                  });
+                for (const { noun, events, sightings } of detected) {
+                  for (const ev of sightings) {
+                    await createFlag({
+                      recording_id: recording.id,
+                      flag_type: 'Bycatch species',
+                      severity: 'High',
+                      timestamp_seconds: Math.round(ev.timestamp),
+                      description:
+                        `Automated detection: ${ev.count} ${noun} over ` +
+                        `${(ev.last_timestamp - ev.timestamp).toFixed(1)}s ` +
+                        `from ${Math.round(ev.timestamp)}s ` +
+                        `(${ev.frames} frame${ev.frames === 1 ? '' : 's'}, ` +
+                        `confidence threshold ${confidence})`,
+                      camera_id: 1,
+                      raised_by: 'detector'
+                    });
+                  }
+                  console.log(
+                    `✓ Raised ${sightings.length} ${noun} flag(s) from ` +
+                      `${events.length} detections on recording ` +
+                      `${recording.id} for ${videoId}`
+                  );
                 }
-                console.log(
-                  `✓ Raised ${sightings.length} flag(s) from ` +
-                    `${meta.dolphin_events.length} detections on recording ` +
-                    `${recording.id} for ${videoId}`
-                );
               })
               .catch((err) => console.error('Error raising detection flags:', err));
           }

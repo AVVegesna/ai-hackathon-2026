@@ -397,6 +397,19 @@ time,
   border-color: var(--line);
 }
 
+/* Species badges sit alongside the severity ones: a flag carries both a
+   severity and, when the detector raised it, which animal it found. */
+.badge-dolphin {
+  background: var(--species-dolphin-tint);
+  color: var(--species-dolphin);
+  border-color: color-mix(in srgb, var(--species-dolphin) 35%, transparent);
+}
+.badge-albatross {
+  background: var(--species-albatross-tint);
+  color: var(--species-albatross);
+  border-color: color-mix(in srgb, var(--species-albatross) 35%, transparent);
+}
+
 /* --- Cards ------------------------------------------------------------- */
 
 .card {
@@ -1023,7 +1036,10 @@ table.data tbody tr.static-row:hover {
 }
 
 .timeline-bar[data-kind='dolphin'] {
-  background: var(--sev-high);
+  background: var(--species-dolphin);
+}
+.timeline-bar[data-kind='albatross'] {
+  background: var(--species-albatross);
 }
 .timeline-bar[data-kind='fish'] {
   background: var(--accent);
@@ -1333,6 +1349,7 @@ table.data tbody tr.static-row:hover {
 
 .rerun {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: var(--space-3);
   padding: var(--space-3);

@@ -1,8 +1,16 @@
 // Single place the app talks to the API. Requests go through the Vite proxy
 // on a relative path, so there is no hardcoded localhost:3000 to break when
 // this is served from anywhere other than a dev machine.
+//
+// apiBase keeps that relative default but allows VITE_API_BASE_URL to point at
+// a different origin, for a deployment that hosts the frontend apart from the
+// API. mediaUrl is re-exported here so components have one import for both.
 
-const BASE = '/api';
+import { API_URL, mediaUrl } from '../apiBase';
+
+const BASE = API_URL;
+
+export { mediaUrl };
 
 class ApiError extends Error {
   constructor(message, status) {

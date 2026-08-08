@@ -51,6 +51,16 @@
   --sev-low: #55636d;
   --sev-low-tint: #e4e8eb;
 
+  /* --- Semantic: protected species ---------------------------------------
+     Species identity is a separate axis from severity. A dolphin and an
+     albatross are both High, so severity colour cannot tell them apart — and
+     one run can surface both at once. Same contrast discipline as above:
+     checked against --surface at 4.5:1 or better. */
+  --species-dolphin: #b03a24;
+  --species-dolphin-tint: #f7e2dd;
+  --species-albatross: #7a5a12;
+  --species-albatross-tint: #f4edda;
+
   --ok: #2c6a4a;
   --ok-tint: #dcece3;
   --escalated: #6a4a94;
