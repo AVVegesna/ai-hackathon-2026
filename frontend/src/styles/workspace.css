@@ -1,0 +1,550 @@
+/* ---------------------------------------------------------------------------
+   Review workspace. Full-height, always dark, three columns:
+   evidence context | video + scrubber | determination.
+--------------------------------------------------------------------------- */
+
+.ws {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--ground);
+  color: var(--ink);
+}
+
+.ws-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+.ws-bar h1 {
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+.ws-bar-end {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ws-pos {
+  font-size: 12px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ws-body {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 320px;
+  gap: 1px;
+  background: var(--line);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ws-col {
+  background: var(--ground);
+  overflow-y: auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ws-col-center {
+  padding: var(--space-3);
+  gap: var(--space-3);
+}
+
+.ws-section {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.ws-section > h2 {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-family: var(--font-body);
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+
+/* --- Video ------------------------------------------------------------- */
+
+.player {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* Height-driven rather than aspect-ratio-driven: on a wide column a 16:9 box
+   grows tall enough to push the transport and scrubber off a 1366×768 laptop
+   screen. The video is object-fit: contain, so it letterboxes inside instead
+   of being cropped. */
+.stage {
+  position: relative;
+  background: #000;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  height: min(52vh, 460px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stage video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #000;
+}
+
+/* Multi-camera grid. Cameras beyond the one we hold media for render as
+   labelled, explicitly empty panes rather than duplicated footage. */
+.stage-grid {
+  height: min(52vh, 460px);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.pane {
+  position: relative;
+  background: #000;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.pane video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.pane[aria-current='true'] {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.pane-label {
+  position: absolute;
+  top: 5px;
+  left: 6px;
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  pointer-events: none;
+}
+
+.pane-empty {
+  font-size: 11px;
+  color: #6d777e;
+  letter-spacing: 0.06em;
+  text-align: center;
+  padding: var(--space-2);
+}
+
+.stage-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: #7f8b94;
+  font-size: 13px;
+  text-align: center;
+  padding: var(--space-4);
+}
+
+.stage-badge {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  padding: 2px 6px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Scrubber ---------------------------------------------------------- */
+
+/* The scrubber is the point of the screen: flag markers sit on the timeline
+   itself, so a reviewer seeks to an event instead of reading a timecode out
+   of a list and hunting for it. */
+.scrub {
+  position: relative;
+  height: 40px;
+  padding: 13px 0;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.scrub:focus-visible {
+  box-shadow: var(--focus);
+  border-radius: var(--radius-sm);
+}
+
+.scrub-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 18px;
+  height: 4px;
+  background: var(--surface-sunken);
+  border-radius: 2px;
+}
+
+.scrub-played {
+  position: absolute;
+  left: 0;
+  top: 18px;
+  height: 4px;
+  background: var(--accent);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.scrub-head {
+  position: absolute;
+  top: 11px;
+  width: 2px;
+  height: 18px;
+  background: var(--ink);
+  pointer-events: none;
+  transform: translateX(-1px);
+}
+
+.marker {
+  position: absolute;
+  top: 6px;
+  width: 11px;
+  height: 28px;
+  transform: translateX(-50%);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.marker::after {
+  content: '';
+  width: 2px;
+  height: 22px;
+  background: currentColor;
+  border-radius: 1px;
+}
+
+.marker-cap {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  background: currentColor;
+}
+
+/* Marker shape encodes severity alongside colour: triangle for high,
+   square for medium, circle for low. Readable without colour. */
+.marker[data-sev='High'] {
+  color: var(--sev-high);
+}
+.marker[data-sev='High'] .marker-cap {
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  width: 9px;
+  height: 8px;
+}
+.marker[data-sev='Medium'] {
+  color: var(--sev-medium);
+}
+.marker[data-sev='Low'] {
+  color: var(--sev-low);
+}
+.marker[data-sev='Low'] .marker-cap {
+  border-radius: 50%;
+}
+
+.marker[data-active='true'] {
+  z-index: 2;
+}
+.marker[data-active='true'] .marker-cap {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+.marker[data-resolved='true'] {
+  opacity: 0.4;
+}
+
+.scrub-times {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Transport --------------------------------------------------------- */
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.transport .time {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.transport-end {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* --- Flag list in the left column -------------------------------------- */
+
+.flaglist {
+  display: flex;
+  flex-direction: column;
+}
+
+.flaglist button {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  border-left: 2px solid transparent;
+}
+
+.flaglist button:hover {
+  background: var(--surface-hover);
+}
+
+.flaglist button[aria-current='true'] {
+  background: var(--accent-tint);
+  border-left-color: var(--accent);
+}
+
+.flaglist .fl-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.flaglist .fl-type {
+  font-size: 12px;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Determination panel ----------------------------------------------- */
+
+.determination {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.det-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.det-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  cursor: pointer;
+  text-align: left;
+}
+
+.det-choice:hover {
+  background: var(--surface-hover);
+}
+
+.det-choice input {
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+
+.det-choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.det-choice-text b {
+  font-size: 13px;
+}
+
+.det-choice-text span {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.det-choice[data-checked='true'] {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.det-resolved {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent);
+  background: var(--ok-tint);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.det-resolved b {
+  color: var(--ok);
+  font-size: 13px;
+}
+
+/* --- Shortcut sheet ---------------------------------------------------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  z-index: 50;
+}
+
+.sheet {
+  background: var(--surface-raised);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  max-width: 560px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.sheet-head h2 {
+  font-size: 15px;
+}
+
+.sheet-body {
+  padding: var(--space-3);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+
+.shortcut-group h3 {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-family: var(--font-body);
+  margin-bottom: var(--space-2);
+}
+
+.shortcut-group dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shortcut-group div {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: 12px;
+}
+
+.shortcut-group dt {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 3px;
+}
+
+.shortcut-group dd {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+/* --- Responsive -------------------------------------------------------- */
+
+/* Below a wide desktop the three columns stack rather than crush: the video
+   keeps its width and the side columns fall underneath it. */
+@media (max-width: 1280px) {
+  .ws-body {
+    grid-template-columns: 210px minmax(0, 1fr);
+  }
+  .ws-col-right {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--line);
+  }
+}
+
+@media (max-width: 900px) {
+  .ws-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ws-col-left {
+    order: 3;
+  }
+}

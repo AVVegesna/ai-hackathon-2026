@@ -56,7 +56,11 @@ except Exception as e:
 sys.exit(0)
 `;
 
-  const pyProc = spawn('python', ['-c', pythonScript], { cwd: rootDir });
+  // macOS and most modern distros ship `python3` and no bare `python`, so
+  // spawning 'python' fails with ENOENT before the detector is ever reached.
+  // Honour an explicit override, then fall back to python3.
+  const interpreter = process.env.PYTHON_BIN || 'python3';
+  const pyProc = spawn(interpreter, ['-c', pythonScript], { cwd: rootDir });
 
   pyProc.stdout.on('data', (data) => {
     const lines = data.toString().split('\n');
@@ -113,6 +117,20 @@ sys.exit(0)
   pyProc.on('error', (err) => {
     activeTasks[videoId].status = 'failed';
     activeTasks[videoId].progress = 100;
-    activeTasks[videoId].message = `Failed to start detector process: ${err.message}`;
+    activeTasks[videoId].message =
+      err.code === 'ENOENT'
+        ? `Python interpreter '${interpreter}' was not found. Install Python 3, or set PYTHON_BIN to its path.`
+        : `Failed to start detector process: ${err.message}`;
+  });
+
+  // A non-zero exit with no JSON result means the detector itself failed —
+  // most often an ImportError because backend/detector.py is absent. Without
+  // this the task would sit at 'starting' forever and the UI would spin.
+  pyProc.on('close', (code) => {
+    const task = activeTasks[videoId];
+    if (!task || task.status === 'completed' || task.status === 'failed') return;
+    task.status = 'failed';
+    task.progress = 100;
+    task.message = `Detector exited with code ${code} before returning a result. Check the backend log.`;
   });
 }
