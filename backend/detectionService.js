@@ -2,26 +2,108 @@ import path from 'path';
 import fs from 'fs';
 import { spawn } from 'child_process';
 import { createFlag } from './routes/flags.js';
+import { getOrCreateRecordingForUpload } from './routes/recordings.js';
+import {
+  PROJECT_ROOT,
+  PYTHON_SCRIPT_DIR,
+  UPLOADS_DIR,
+  RESULTS_DIR,
+  ensureDirs,
+  resolvePythonBin,
+} from './paths.js';
 
-const BASE_DIR = process.cwd();
-export const UPLOADS_DIR = path.join(BASE_DIR, 'uploads');
-export const RESULTS_DIR = path.join(BASE_DIR, 'results');
+export { UPLOADS_DIR, RESULTS_DIR };
 
-if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-if (!fs.existsSync(RESULTS_DIR)) fs.mkdirSync(RESULTS_DIR, { recursive: true });
+ensureDirs();
+
+// Detection is the only part of the app that needs Python, torch and ~4GB of
+// RAM. Deployments that don't carry that stack set DETECTION_ENABLED=false; the
+// app then serves everything else and reports detection as not run rather than
+// implying a clean result it never computed.
+export const DETECTION_ENABLED = process.env.DETECTION_ENABLED !== 'false';
+
+export const DETECTION_DISABLED_MESSAGE =
+  'Detection was not run — the model is not enabled in this deployment.';
 
 export const activeTasks = {};
 
-export function runDetectionTask(videoId, inputPath, outputPath, modelName = 'dolphin', confidence = 0.15) {
+// How far apart two detections must be to count as separate sightings.
+const SIGHTING_GAP_SECONDS = Number(process.env.SIGHTING_GAP_SECONDS || 3);
+
+// Collapse a run of per-frame detections into distinct sightings. Returns the
+// start timestamp of each run and the peak count observed during it.
+export function coalesceEvents(events = [], gap = SIGHTING_GAP_SECONDS) {
+  const sorted = [...events]
+    .filter((e) => e && Number.isFinite(e.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  const out = [];
+  for (const ev of sorted) {
+    const last = out[out.length - 1];
+    if (last && ev.timestamp - last.last_timestamp < gap) {
+      last.last_timestamp = ev.timestamp;
+      last.count = Math.max(last.count, ev.count || 0);
+      last.frames += 1;
+    } else {
+      out.push({
+        timestamp: ev.timestamp,
+        last_timestamp: ev.timestamp,
+        count: ev.count || 0,
+        frames: 1
+      });
+    }
+  }
+  return out;
+}
+
+export function runDetectionTask(videoId, inputPath, outputPath, modelName = 'dolphin', confidence = 0.15, vesselId = null) {
+  if (!DETECTION_ENABLED) {
+    activeTasks[videoId] = {
+      status: 'unavailable',
+      progress: 0,
+      message: DETECTION_DISABLED_MESSAGE,
+      current_count: 0
+    };
+    return;
+  }
+
   activeTasks[videoId] = {
     status: 'starting',
     progress: 0,
-    message: 'Initializing dolphin detection model...',
+    message: `Initializing ${modelName} detection model...`,
     current_count: 0
   };
 
-  // PythonScript folder containing detector.py (c:\Users\admin\Downloads\AI_Hackathon_2026\ai-hackathon-2026\PythonScript)
-  const pythonScriptDir = path.resolve(BASE_DIR, '..', 'PythonScript');
+  // The directory to put on sys.path — whichever one actually holds
+  // detector.py. Resolved rather than hardcoded because it has moved three
+  // times already (PythonScript/, PythonScript/backend/, and a folder outside
+  // the checkout on the original author's machine). DETECTOR_ROOT wins if it
+  // ends up somewhere else again.
+  const candidateDirs = [
+    process.env.DETECTOR_ROOT,
+    PYTHON_SCRIPT_DIR,
+    path.join(PYTHON_SCRIPT_DIR, 'backend'),
+    PROJECT_ROOT,
+  ].filter(Boolean);
+
+  const pythonScriptDir = candidateDirs.find((dir) =>
+    fs.existsSync(path.join(dir, 'detector.py'))
+  );
+
+  // Fail immediately and name every path tried. Without this the import error
+  // surfaces as an opaque exit code and the task hangs at 'starting'.
+  if (!pythonScriptDir) {
+    activeTasks[videoId] = {
+      status: 'failed',
+      progress: 100,
+      message:
+        'detector.py was not found. Looked in: ' +
+        candidateDirs.join(', ') +
+        '. Set DETECTOR_ROOT to the directory that contains it.',
+      current_count: 0
+    };
+    return;
+  }
   
   // Python script execution to run detector.py
   const pythonScript = `
@@ -57,7 +139,25 @@ except Exception as e:
 sys.exit(0)
 `;
 
-  const pyProc = spawn('python', ['-c', pythonScript], { cwd: pythonScriptDir });
+  // macOS and most modern distros ship `python3` and no bare `python`, so
+  // spawning 'python' fails with ENOENT before the detector is ever reached.
+  // resolvePythonBin probes the venv, python3 and python in turn; PYTHON_BIN
+  // overrides it outright.
+  const interpreter = resolvePythonBin();
+
+  if (!interpreter) {
+    activeTasks[videoId] = {
+      status: 'failed',
+      progress: 100,
+      message:
+        'No Python interpreter was found. Install the detector dependencies ' +
+        '(see SETUP.md) and set PYTHON_BIN if it lives somewhere unusual.',
+      current_count: 0
+    };
+    return;
+  }
+
+  const pyProc = spawn(interpreter, ['-c', pythonScript], { cwd: pythonScriptDir });
 
   pyProc.stdout.on('data', (data) => {
     const lines = data.toString().split('\n');
@@ -77,38 +177,63 @@ sys.exit(0)
 
           activeTasks[videoId].status = 'completed';
           activeTasks[videoId].progress = 100;
-          activeTasks[videoId].message = 'Dolphin detection completed!';
+          activeTasks[videoId].message = 'Detection completed!';
           activeTasks[videoId].result = meta;
 
-          // Auto-generate SQLite DB flags if dolphins or albatross were detected
-          if (meta.has_dolphin && meta.dolphin_events && meta.dolphin_events.length > 0) {
-            const sampledEvents = meta.dolphin_events.slice(0, 5);
-            for (const ev of sampledEvents) {
-              createFlag({
-                recording_id: 1,
-                flag_type: 'Bycatch species',
-                severity: 'High',
-                timestamp_seconds: Math.round(ev.timestamp),
-                description: `Dolphin detected in video feed (Count: ${ev.count}) at ${Math.round(ev.timestamp)}s`,
-                camera_id: 1
-              }).catch(err => console.error('Error recording dolphin flag:', err));
-            }
-            console.log(`✓ Auto-generated ${sampledEvents.length} dolphin flags in SQLite database for ${videoId}`);
-          }
+          // The detector reports a hit per sampled frame, so one continuous
+          // sighting arrives as a run of events a fraction of a second apart.
+          // Raising a flag for each would put a dozen near-identical items in
+          // the queue for a single animal, and a reviewer would have to
+          // determine every one. Coalesce runs into sightings instead: group
+          // events less than SIGHTING_GAP_SECONDS apart, keep the peak count,
+          // and anchor the flag at the start of the run. Nothing is dropped —
+          // distinct sightings all still produce a flag.
+          //
+          // Both protected species are coalesced independently, so a fish
+          // count that happens to catch a dolphin and an albatross raises a
+          // separate, correctly-labelled flag for each.
+          const detected = [
+            { noun: 'dolphin', detectedFlag: meta.has_dolphin, events: meta.dolphin_events },
+            { noun: 'albatross/seabird', detectedFlag: meta.has_albatross, events: meta.albatross_events }
+          ]
+            .filter((s) => s.detectedFlag)
+            .map((s) => ({ ...s, sightings: coalesceEvents(s.events) }))
+            .filter((s) => s.sightings.length > 0);
 
-          if (meta.has_albatross && meta.albatross_events && meta.albatross_events.length > 0) {
-            const sampledEvents = meta.albatross_events.slice(0, 5);
-            for (const ev of sampledEvents) {
-              createFlag({
-                recording_id: 1,
-                flag_type: 'Bycatch species',
-                severity: 'High',
-                timestamp_seconds: Math.round(ev.timestamp),
-                description: `Albatross / Seabird detected in video feed (Count: ${ev.count}) at ${Math.round(ev.timestamp)}s`,
-                camera_id: 1
-              }).catch(err => console.error('Error recording albatross flag:', err));
-            }
-            console.log(`✓ Auto-generated ${sampledEvents.length} albatross flags in SQLite database for ${videoId}`);
+          if (detected.length > 0) {
+            getOrCreateRecordingForUpload({
+              videoId,
+              mediaUrl: `/uploads/${path.basename(inputPath)}`,
+              processedMediaUrl: `/results/${path.basename(outputPath)}`,
+              vesselId,
+              durationSeconds: meta.duration_seconds
+            })
+              .then(async (recording) => {
+                for (const { noun, events, sightings } of detected) {
+                  for (const ev of sightings) {
+                    await createFlag({
+                      recording_id: recording.id,
+                      flag_type: 'Bycatch species',
+                      severity: 'High',
+                      timestamp_seconds: Math.round(ev.timestamp),
+                      description:
+                        `Automated detection: ${ev.count} ${noun} over ` +
+                        `${(ev.last_timestamp - ev.timestamp).toFixed(1)}s ` +
+                        `from ${Math.round(ev.timestamp)}s ` +
+                        `(${ev.frames} frame${ev.frames === 1 ? '' : 's'}, ` +
+                        `confidence threshold ${confidence})`,
+                      camera_id: 1,
+                      raised_by: 'detector'
+                    });
+                  }
+                  console.log(
+                    `✓ Raised ${sightings.length} ${noun} flag(s) from ` +
+                      `${events.length} detections on recording ` +
+                      `${recording.id} for ${videoId}`
+                  );
+                }
+              })
+              .catch((err) => console.error('Error raising detection flags:', err));
           }
         } else if (parsed.type === 'error') {
           activeTasks[videoId].status = 'failed';
@@ -129,6 +254,20 @@ sys.exit(0)
   pyProc.on('error', (err) => {
     activeTasks[videoId].status = 'failed';
     activeTasks[videoId].progress = 100;
-    activeTasks[videoId].message = `Failed to start detector process: ${err.message}`;
+    activeTasks[videoId].message =
+      err.code === 'ENOENT'
+        ? `Python interpreter '${interpreter}' was not found. Install Python 3, or set PYTHON_BIN to its path.`
+        : `Failed to start detector process: ${err.message}`;
+  });
+
+  // A non-zero exit with no JSON result means the detector itself failed —
+  // most often an ImportError because backend/detector.py is absent. Without
+  // this the task would sit at 'starting' forever and the UI would spin.
+  pyProc.on('close', (code) => {
+    const task = activeTasks[videoId];
+    if (!task || task.status === 'completed' || task.status === 'failed') return;
+    task.status = 'failed';
+    task.progress = 100;
+    task.message = `Detector exited with code ${code} before returning a result. Check the backend log.`;
   });
 }

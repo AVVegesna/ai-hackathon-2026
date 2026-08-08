@@ -5,16 +5,29 @@ import dotenv from 'dotenv';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { initializeDatabase } from './database.js';
+import { initializeDatabase, migrateDatabase, isDatabaseEmpty } from './database.js';
+import { FRONTEND_DIST, DB_PATH } from './paths.js';
 import { getVessels, getVesselById, updateVessel, createVessel } from './routes/vessels.js';
 import { getRecordings, getRecordingsByVessel, createRecording } from './routes/recordings.js';
-import { getFlags, getFlagsByRecording, createFlag, resolveFlag } from './routes/flags.js';
-import { UPLOADS_DIR, RESULTS_DIR, activeTasks, runDetectionTask } from './detectionService.js';
+import { getFlags, getFlagsByRecording, getFlagById, createFlag, resolveFlag } from './routes/flags.js';
+import { getQueue, getQueueStats, getQueueFacets } from './routes/stats.js';
+import { getReviewsByVessel, createReview } from './routes/reviews.js';
+import { getAudit } from './routes/audit.js';
+import { getFleetOverview } from './routes/fleet.js';
+import {
+  UPLOADS_DIR,
+  RESULTS_DIR,
+  activeTasks,
+  runDetectionTask,
+  DETECTION_ENABLED,
+  DETECTION_DISABLED_MESSAGE
+} from './detectionService.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 // Middleware
 app.use(cors());
@@ -26,9 +39,12 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 app.use('/results', express.static(RESULTS_DIR));
 
 // Serve Frontend Static Files
-const FRONTEND_DIST = path.join(path.resolve(process.cwd(), '..'), 'frontend', 'dist');
 if (fs.existsSync(FRONTEND_DIST)) {
   app.use(express.static(FRONTEND_DIST));
+} else {
+  console.warn(
+    `! No frontend build at ${FRONTEND_DIST} — API only. Run "npm run build" to serve the app.`
+  );
 }
 
 // Configure Multer for Video Uploads
@@ -42,12 +58,92 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Initialize database
-initializeDatabase();
-
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// What this deployment can actually do. The UI reads this so it can hide the
+// detection controls outright instead of offering an action that will fail.
+app.get('/api/config', (req, res) => {
+  res.json({
+    detection_enabled: DETECTION_ENABLED,
+    detection_message: DETECTION_ENABLED ? null : DETECTION_DISABLED_MESSAGE
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Review queue — the primary work surface. Filtered, sorted and paginated
+// server-side so the client never pulls the whole flag table to narrow it.
+// ---------------------------------------------------------------------------
+app.get('/api/queue', async (req, res) => {
+  try {
+    res.json(await getQueue(req.query));
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message });
+  }
+});
+
+app.get('/api/queue/stats', async (req, res) => {
+  try {
+    res.json(await getQueueStats());
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/queue/facets', async (req, res) => {
+  try {
+    res.json(await getQueueFacets());
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/flags/:id', async (req, res) => {
+  try {
+    const flag = await getFlagById(req.params.id);
+    if (!flag) return res.status(404).json({ error: 'Flag not found' });
+    res.json(flag);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Reviews — append-only vessel-level determinations
+app.get('/api/vessels/:vesselId/reviews', async (req, res) => {
+  try {
+    res.json(await getReviewsByVessel(req.params.vesselId));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/reviews', async (req, res) => {
+  try {
+    if (!req.body.vessel_id) return res.status(400).json({ error: 'vessel_id is required' });
+    res.status(201).json(await createReview(req.body));
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message });
+  }
+});
+
+// Fleet overview — map positions and aggregate figures
+app.get('/api/fleet/overview', async (req, res) => {
+  try {
+    res.json(await getFleetOverview());
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Audit trail — read-only by design
+app.get('/api/audit', async (req, res) => {
+  try {
+    res.json(await getAudit(req.query));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Video Upload & Dolphin Detection API Endpoints
@@ -67,6 +163,13 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
 });
 
 app.post('/api/detect/:videoId', (req, res) => {
+  if (!DETECTION_ENABLED) {
+    return res.status(503).json({
+      error: DETECTION_DISABLED_MESSAGE,
+      detection_enabled: false
+    });
+  }
+
   const videoId = req.params.videoId;
   const modelName = req.body.model_name || 'dolphin';
   const confidence = parseFloat(req.body.confidence || '0.25');
@@ -88,7 +191,8 @@ app.post('/api/detect/:videoId', (req, res) => {
   const outputFilename = `${videoId}_processed.mp4`;
   const outputPath = path.join(RESULTS_DIR, outputFilename);
 
-  runDetectionTask(videoId, inputPath, outputPath, modelName, confidence);
+  const vesselId = req.body.vessel_id ? Number(req.body.vessel_id) : null;
+  runDetectionTask(videoId, inputPath, outputPath, modelName, confidence, vesselId);
 
   res.json({ status: 'started', video_id: videoId });
 });
@@ -113,11 +217,21 @@ app.get('/api/status/:videoId', (req, res) => {
     } catch (e) {}
   }
 
-  res.json({
-    status: 'idle',
-    progress: 0,
-    message: 'Video uploaded, waiting to start detection.'
-  });
+  // No live task and no stored result. Say which of the two situations this is,
+  // rather than implying detection is pending when it can never run here.
+  res.json(
+    DETECTION_ENABLED
+      ? {
+          status: 'idle',
+          progress: 0,
+          message: 'Video uploaded, waiting to start detection.'
+        }
+      : {
+          status: 'unavailable',
+          progress: 0,
+          message: DETECTION_DISABLED_MESSAGE
+        }
+  );
 });
 
 app.get('/api/results/:videoId', (req, res) => {
@@ -151,30 +265,42 @@ app.get('/api/videos', (req, res) => {
     let status = 'uploaded';
     let hasDolphin = false;
     let peakDolphinCount = 0;
+    let hasAlbatross = false;
+    let peakAlbatrossCount = 0;
+
+    const readCounts = (meta) => {
+      hasDolphin = meta.has_dolphin || false;
+      peakDolphinCount = meta.peak_dolphin_count || 0;
+      hasAlbatross = meta.has_albatross || false;
+      peakAlbatrossCount = meta.peak_albatross_count || 0;
+    };
 
     if (activeTasks[videoId]) {
       status = activeTasks[videoId].status;
       if (activeTasks[videoId].result) {
-        hasDolphin = activeTasks[videoId].result.has_dolphin || false;
-        peakDolphinCount = activeTasks[videoId].result.peak_dolphin_count || 0;
+        readCounts(activeTasks[videoId].result);
       }
     } else if (hasMeta) {
       status = 'completed';
       try {
-        const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-        hasDolphin = meta.has_dolphin || false;
-        peakDolphinCount = meta.peak_dolphin_count || 0;
+        readCounts(JSON.parse(fs.readFileSync(metaPath, 'utf8')));
       } catch (e) {}
     }
 
-    videos.append ? null : videos.push({
+    videos.push({
       video_id: videoId,
       filename: filename,
       url: `/uploads/${filename}`,
       status: status,
       has_results: hasMeta,
+      // `analysed` separates "the model looked and found nothing" from "nothing
+      // has looked at this yet". Without it, has_dolphin: false reads as a clean
+      // result on footage that was never examined.
+      analysed: hasMeta,
       has_dolphin: hasDolphin,
-      peak_dolphin_count: peakDolphinCount
+      peak_dolphin_count: peakDolphinCount,
+      has_albatross: hasAlbatross,
+      peak_albatross_count: peakAlbatrossCount
     });
   }
 
@@ -282,7 +408,7 @@ app.put('/api/flags/:id/resolve', async (req, res) => {
     if (!flag) return res.status(404).json({ error: 'Flag not found' });
     res.json(flag);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status || 500).json({ error: error.message });
   }
 });
 
@@ -299,10 +425,34 @@ app.get('*', (req, res, next) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`✓ Express.js Fisheries Portal API running on http://localhost:${PORT}`);
-  console.log(`✓ Web Portal & App available at http://localhost:${PORT}`);
-  console.log(`✓ API health check at http://localhost:${PORT}/api/health`);
+async function start() {
+  await initializeDatabase();
+  await migrateDatabase();
+
+  // A host with an ephemeral filesystem gets a blank database on every deploy.
+  // Seeding only when empty keeps demo data present without wiping real records.
+  if (process.env.SEED_ON_START !== 'false') {
+    try {
+      if (await isDatabaseEmpty()) {
+        const { seedDatabase } = await import('./seedData.js');
+        await seedDatabase();
+      }
+    } catch (error) {
+      console.error('! Seeding skipped:', error.message);
+    }
+  }
+
+  app.listen(PORT, HOST, () => {
+    console.log(`✓ Express.js Fisheries Portal API listening on ${HOST}:${PORT}`);
+    console.log(`✓ Database at ${DB_PATH}`);
+    console.log(`✓ Detection ${DETECTION_ENABLED ? 'enabled' : 'disabled'}`);
+    console.log(`✓ API health check at /api/health`);
+  });
+}
+
+start().catch((error) => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
 });
 
 

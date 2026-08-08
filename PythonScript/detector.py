@@ -43,6 +43,7 @@ MODEL_CONFIGS = {
     }
 }
 
+# Global dictionary to store model instances so we don't reload them every time
 _loaded_models = {}
 
 def get_model_path(model_name: str, progress_callback=None) -> str:
@@ -80,11 +81,13 @@ def load_yolo_model(model_name: str, progress_callback=None):
     if model_name == "dolphin":
         from ultralytics import YOLOWorld
         model = YOLOWorld(model_path)
+        # Exclusively target dolphins and marine mammals
         model.set_classes(["dolphin", "bottlenose dolphin", "porpoise", "marine mammal", "sea mammal"])
     elif model_name == "albatross":
         from ultralytics import YOLOWorld
         model = YOLOWorld(model_path)
-        model.set_classes(["albatross", "wandering albatross", "black-browed albatross", "seabird", "petrel", "sea bird"])
+        # Exclusively target albatross and other seabirds
+        model.set_classes(["albatross", "wandering albatross", "black-browed albatross", "seabird", "petrel"])
     else:
         model = YOLO(model_path)
         
@@ -127,18 +130,23 @@ def draw_cyberpunk_box(img, x1, y1, x2, y2, label, confidence, color=(0, 255, 17
     cv2.rectangle(img, (badge_x1, badge_y1), (badge_x2, badge_y2), color, -1)
     cv2.putText(img, txt, (badge_x1 + 5, badge_y2 - 4), font, font_scale, (20, 20, 20), thickness, cv2.LINE_AA)
 
-def draw_hud_overlay(img, frame_idx, total_frames, count_value, fps_processing, model_label, count_label="DOLPHIN COUNT", alert_count=0):
-    """Draws a professional sci-fi HUD card on the top left of the video frame."""
+def draw_hud_overlay(img, frame_idx, total_frames, count_value, fps_processing, model_label, count_label="DOLPHIN COUNT", alert_count=0, alert_text=None):
+    """Draws a professional sci-fi HUD card on the top left of the video frame.
+
+    alert_count drives the card's alert styling; alert_text, when set, adds a
+    secondary line naming the protected species found alongside the primary
+    count (a dolphin surfacing during a fish count, say).
+    """
     h, w, _ = img.shape
-    
-    card_w, card_h = 260, 125 if alert_count > 0 else 110
+
+    card_w, card_h = 260, 125 if alert_text else 110
     card_x, card_y = 20, 20
-    
+
     overlay = img.copy()
     card_bg_color = (45, 10, 55) if alert_count > 0 else (15, 23, 42)
     cv2.rectangle(overlay, (card_x, card_y), (card_x + card_w, card_y + card_h), card_bg_color, -1)
     cv2.addWeighted(overlay, 0.85, img, 0.15, 0, img)
-    
+
     border_color = (0, 180, 255) if "ALBATROSS" in count_label else ((255, 0, 255) if alert_count > 0 else (0, 255, 170))
     cv2.rectangle(img, (card_x, card_y), (card_x + card_w, card_y + card_h), border_color, 1)
     cv2.line(img, (card_x, card_y), (card_x + 30, card_y), border_color, 3)
@@ -159,8 +167,11 @@ def draw_hud_overlay(img, frame_idx, total_frames, count_value, fps_processing, 
     count_text_color = (0, 180, 255) if "ALBATROSS" in count_label else ((255, 0, 255) if "DOLPHIN" in count_label else (52, 211, 153))
     cv2.putText(img, f"{count_label}: {count_value}", (card_x + 12, card_y + 95), font, 0.45, count_text_color, 2, cv2.LINE_AA)
 
+    if alert_text:
+        cv2.putText(img, alert_text, (card_x + 12, card_y + 115), font, 0.45, (255, 0, 255), 2, cv2.LINE_AA)
+
 def process_video_frames(input_path: str, output_path: str, model_name: str, confidence: float, progress_callback):
-    """Processes a video frame-by-frame, runs YOLOv8 marine/seabird detection, overlays graphics, and encodes H.264 video."""
+    """Processes a video frame-by-frame, runs YOLOv8 fish/dolphin/seabird detection, overlays graphics, and encodes H.264 video."""
     start_time = time.time()
     
     model = load_yolo_model(model_name, progress_callback)
@@ -181,18 +192,31 @@ def process_video_frames(input_path: str, output_path: str, model_name: str, con
     if total_frames <= 0:
         total_frames = 100
         
+    # Render to a temporary file and move it into place once complete. Writing
+    # output_path directly means a re-run rewrites the very file the browser is
+    # still streaming, which surfaces as the annotated video freezing part-way
+    # through rather than as any kind of error.
+    tmp_output = f"{output_path}.partial.mp4"
+
+    # -movflags +faststart puts the moov atom at the front of the file. Without
+    # it ffmpeg writes the index last, and a browser cannot start playing until
+    # it has hunted down the tail — the same visible stall.
+    faststart = ['-movflags', '+faststart']
+
     try:
         writer = imageio.get_writer(
-            output_path, 
-            fps=fps, 
-            codec='libx264', 
+            tmp_output,
+            fps=fps,
+            codec='libx264',
             pixelformat='yuv420p',
-            quality=8
+            quality=8,
+            output_params=faststart
         )
     except Exception as e:
         print(f"Failed to create imageio writer with libx264: {e}. Falling back to default writer.")
-        writer = imageio.get_writer(output_path, fps=fps)
-        
+        writer = imageio.get_writer(tmp_output, fps=fps, output_params=faststart)
+
+
     frame_idx = 0
     frame_counts = []
     dolphin_frame_counts = []
@@ -200,22 +224,24 @@ def process_video_frames(input_path: str, output_path: str, model_name: str, con
     fish_frame_counts = []
     dolphin_events = []
     albatross_events = []
-    
+
     print(f"Starting processing: {width}x{height} @ {fps}fps, {total_frames} frames.")
-    
+
     color_fish = (170, 255, 0)
     color_dolphin = (255, 0, 255)
-    color_albatross = (0, 180, 255) # Gold / Amber
+    color_albatross = (0, 180, 255)
     color_default = (0, 215, 255)
-    
+
     frame_stride = 2 if total_frames > 300 else 1
-    
+
     last_detections = []
     last_fish_in_frame = 0
     last_dolphin_in_frame = 0
     last_albatross_in_frame = 0
     last_total_in_frame = 0
-    
+
+    rendered = False
+
     try:
         while cap.isOpened():
             ret, frame = cap.read()
@@ -236,14 +262,19 @@ def process_video_frames(input_path: str, output_path: str, model_name: str, con
                 dolphin_in_frame = 0
                 albatross_in_frame = 0
                 total_in_frame = 0
-                
+
                 if len(results) > 0:
                     boxes = results[0].boxes
                     for box in boxes:
                         cls_id = int(box.cls[0])
                         conf = float(box.conf[0])
-                        
-                        label = "Albatross" if model_name == "albatross" else ("Dolphin" if model_name == "dolphin" else "Fish")
+
+                        if model_name == "dolphin":
+                            label = "Dolphin"
+                        elif model_name == "albatross":
+                            label = "Albatross"
+                        else:
+                            label = "Fish"
                         if model_cfg["classes"] is not None:
                             label = model_cfg["classes"].get(cls_id, label)
                         else:
@@ -271,7 +302,7 @@ def process_video_frames(input_path: str, output_path: str, model_name: str, con
                             total_in_frame += 1
                             box_color = color_default
                             display_label = label
-
+                        
                         xyxy = box.xyxy[0].tolist()
                         detections.append({
                             "box": xyxy,
@@ -316,36 +347,49 @@ def process_video_frames(input_path: str, output_path: str, model_name: str, con
                     "timestamp": timestamp_sec,
                     "count": albatross_in_frame
                 })
-            
+
             frame_dur = time.time() - frame_start
             fps_processing = 1.0 / frame_dur if frame_dur > 0 else 30.0
-            
+
             if model_name == "albatross":
                 count_label = "🦅 ALBATROSS COUNT"
                 main_count_value = albatross_in_frame
-                alert_val = albatross_in_frame
+                alert_count = albatross_in_frame
             elif model_name == "dolphin":
                 count_label = "🐬 DOLPHIN COUNT"
                 main_count_value = dolphin_in_frame
-                alert_val = dolphin_in_frame
+                alert_count = dolphin_in_frame
             elif model_name == "coco":
                 count_label = "OBJECT COUNT"
                 main_count_value = total_in_frame
-                alert_val = 0
+                alert_count = dolphin_in_frame + albatross_in_frame
             else:
                 count_label = "FISH COUNT"
                 main_count_value = fish_in_frame
-                alert_val = 0
-                
+                alert_count = dolphin_in_frame + albatross_in_frame
+
+            # A protected species spotted while counting something else is the
+            # whole point of the alert line, so name it rather than folding it
+            # into the primary count.
+            alert_text = None
+            if "DOLPHIN" not in count_label and "ALBATROSS" not in count_label:
+                if dolphin_in_frame > 0 and albatross_in_frame > 0:
+                    alert_text = f"BYCATCH ALERT: {dolphin_in_frame}D {albatross_in_frame}A"
+                elif dolphin_in_frame > 0:
+                    alert_text = f"DOLPHIN ALERT: {dolphin_in_frame}"
+                elif albatross_in_frame > 0:
+                    alert_text = f"ALBATROSS ALERT: {albatross_in_frame}"
+
             draw_hud_overlay(
-                frame, 
-                frame_idx, 
-                total_frames, 
-                main_count_value, 
-                fps_processing, 
-                model_label, 
-                count_label, 
-                alert_count=alert_val
+                frame,
+                frame_idx,
+                total_frames,
+                main_count_value,
+                fps_processing,
+                model_label,
+                count_label,
+                alert_count=alert_count,
+                alert_text=alert_text
             )
             
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -360,10 +404,18 @@ def process_video_frames(input_path: str, output_path: str, model_name: str, con
                     current_count=total_in_frame
                 )
                 
+        rendered = True
     finally:
         cap.release()
         writer.close()
-        
+
+        # One atomic move, so a request in flight either reads the previous
+        # render or the new one — never a half-written file.
+        if rendered:
+            os.replace(tmp_output, output_path)
+        elif os.path.exists(tmp_output):
+            os.remove(tmp_output)
+
     duration = time.time() - start_time
     peak_count = max(frame_counts) if frame_counts else 0
     avg_count = sum(frame_counts) / len(frame_counts) if frame_counts else 0
@@ -378,6 +430,12 @@ def process_video_frames(input_path: str, output_path: str, model_name: str, con
 
     results_meta = {
         "processed": True,
+        # Which model produced this result. The UI needs it to know which
+        # species the run actually went looking for — a zero count means
+        # something different when the model was not targeting that species.
+        "model_name": model_name,
+        "model_label": model_label,
+        "confidence_threshold": confidence,
         "total_frames": total_frames,
         "duration_seconds": duration,
         "fps": fps,
@@ -396,6 +454,6 @@ def process_video_frames(input_path: str, output_path: str, model_name: str, con
         "has_albatross": has_albatross,
         "albatross_events": albatross_events
     }
-    
-    print(f"Finished processing in {duration:.1f}s. Peak objects: {peak_count}, Peak dolphins: {peak_dolphin_count}, Peak albatross: {peak_albatross_count}")
+
+    print(f"Finished processing in {duration:.1f}s. Peak objects: {peak_count}, Peak dolphins: {peak_dolphin_count}, Peak albatross: {peak_albatross_count}, Avg: {avg_count:.2f}")
     return results_meta
