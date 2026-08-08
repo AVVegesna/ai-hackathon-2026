@@ -2,7 +2,7 @@ import React from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from './lib/api'
-import { useDensity, useSession, useTheme } from './lib/prefs'
+import { useDensity, useSession } from './lib/prefs'
 import QueueRoute from './routes/QueueRoute'
 import ReviewRoute from './routes/ReviewRoute'
 import FleetRoute from './routes/FleetRoute'
@@ -14,11 +14,8 @@ import './styles/app.css'
 // Routes replace the old `currentView` state, so every screen has an address:
 // a flag under review, or a filtered queue, is a link someone can be sent.
 
-const THEME_LABEL = { system: 'Auto', light: 'Light', dark: 'Dark' }
-
 export default function App() {
   const session = useSession()
-  const { theme, cycle } = useTheme()
   const { density, toggle } = useDensity()
 
   // The open-flag count sits in the nav because it is the one number that
@@ -56,15 +53,6 @@ export default function App() {
             aria-label={`Row density: ${density}. Click to change.`}
           >
             {density === 'compact' ? 'Compact' : 'Comfortable'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-sm btn-ghost"
-            onClick={cycle}
-            title="Colour theme"
-            aria-label={`Theme: ${THEME_LABEL[theme]}. Click to change.`}
-          >
-            {THEME_LABEL[theme]}
           </button>
           <div className="whoami">
             <b>{session.name}</b>

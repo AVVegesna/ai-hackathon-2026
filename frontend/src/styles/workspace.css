@@ -1,6 +1,9 @@
 /* ---------------------------------------------------------------------------
-   Review workspace. Full-height, always dark, three columns:
+   Review workspace. Full-height, three columns:
    evidence context | video + scrubber | determination.
+
+   The video stage itself stays black — footage needs a neutral surround — but
+   the chrome around it uses the same light tokens as the rest of the app.
 --------------------------------------------------------------------------- */
 
 .ws {

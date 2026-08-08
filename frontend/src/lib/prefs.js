@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 
-// Theme and density are stamped on <html> so CSS resolves them, and persisted
-// so a reviewer's choice survives a reload. Three theme states, not two:
-// 'system' deliberately stamps nothing and lets prefers-color-scheme decide.
+// Density is stamped on <html> so CSS resolves it, and persisted so a
+// reviewer's choice survives a reload. The product is light-only, so there is
+// no theme preference to carry.
 
-const THEME_KEY = 'fmrp.theme'
 const DENSITY_KEY = 'fmrp.density'
 
 function read(key, fallback) {
@@ -21,23 +20,6 @@ function write(key, value) {
   } catch {
     /* private browsing — the in-memory value still applies for this session */
   }
-}
-
-export function useTheme() {
-  const [theme, setTheme] = useState(() => read(THEME_KEY, 'system'))
-
-  useEffect(() => {
-    const root = document.documentElement
-    if (theme === 'system') root.removeAttribute('data-theme')
-    else root.setAttribute('data-theme', theme)
-    write(THEME_KEY, theme)
-  }, [theme])
-
-  const cycle = useCallback(() => {
-    setTheme((t) => (t === 'system' ? 'light' : t === 'light' ? 'dark' : 'system'))
-  }, [])
-
-  return { theme, setTheme, cycle }
 }
 
 export function useDensity() {

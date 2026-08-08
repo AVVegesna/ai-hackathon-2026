@@ -184,7 +184,7 @@ export default function ReviewRoute() {
 
   if (flag.isLoading) {
     return (
-      <div className="ws" data-surface="dark">
+      <div className="ws">
         <div className="ws-bar">
           <Skeleton width={220} height={18} />
         </div>
@@ -217,7 +217,7 @@ export default function ReviewRoute() {
         : 'idle'
 
   return (
-    <div className="ws" data-surface="dark">
+    <div className="ws">
       <div className="ws-bar">
         <Link to={`/queue?${search.toString()}`} className="btn btn-sm btn-ghost">
           ← Queue

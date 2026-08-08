@@ -2,7 +2,7 @@
    Token layer.
 
    The Industry design system is the base: its type, accent and spacing are
-   untouched. This file adds the three things a dense operational tool needs
+   untouched. This file adds the two things a dense operational tool needs
    and a wireframe system deliberately does not carry:
 
      1. A semantic colour vocabulary (severity and status), separate from
@@ -10,7 +10,9 @@
      2. Surface elevation, so hierarchy exists. The DS keeps cards as
         transparent line drawings; in a data-dense tool that leaves every
         element at identical visual weight.
-     3. A dark theme, because reviewers sit with video for hours.
+
+   The product is light-only by decision — a single ground everywhere, so
+   there is one set of contrast pairs to verify rather than two.
 
    Deviations are additive. Nothing here overrides an Industry token.
 --------------------------------------------------------------------------- */
@@ -67,115 +69,4 @@
   --row-h: 44px;
   --cell-y: 11px;
   --control-h: 36px;
-}
-
-/* Dark tokens are defined twice on purpose: once behind prefers-color-scheme
-   for the viewer who never touched the toggle (the un-stamped document), and
-   once behind the explicit stamp so the toggle wins over the OS either way.
-   The media query is guarded so an explicit light choice beats a dark OS. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --ground: #14171a;
-    --surface: #1c2126;
-    --surface-raised: #242a30;
-    --surface-sunken: #0f1214;
-    --surface-hover: #262d34;
-
-    --ink: #e7eaec;
-    --ink-2: #a8b2ba;
-    --ink-3: #7f8b94;
-
-    --line: #2f373e;
-    --line-strong: #47525b;
-
-    --accent: #7ea6cd;
-    --accent-hover: #9cbcdc;
-    --accent-tint: #1e2c3a;
-    --on-accent: #0e1418;
-
-    --sev-high: #ef8368;
-    --sev-high-tint: #35201b;
-    --sev-medium: #dfa63c;
-    --sev-medium-tint: #322717;
-    --sev-low: #9aa7b1;
-    --sev-low-tint: #232a30;
-
-    --ok: #67b58c;
-    --ok-tint: #172b21;
-    --escalated: #ab8dd8;
-    --escalated-tint: #241d33;
-
-    --focus: 0 0 0 2px var(--ground), 0 0 0 4px var(--accent);
-  }
-}
-
-:root[data-theme='dark'] {
-  --ground: #14171a;
-  --surface: #1c2126;
-  --surface-raised: #242a30;
-  --surface-sunken: #0f1214;
-  --surface-hover: #262d34;
-
-  --ink: #e7eaec;
-  --ink-2: #a8b2ba;
-  --ink-3: #7f8b94;
-
-  --line: #2f373e;
-  --line-strong: #47525b;
-
-  --accent: #7ea6cd;
-  --accent-hover: #9cbcdc;
-  --accent-tint: #1e2c3a;
-  --on-accent: #0e1418;
-
-  --sev-high: #ef8368;
-  --sev-high-tint: #35201b;
-  --sev-medium: #dfa63c;
-  --sev-medium-tint: #322717;
-  --sev-low: #9aa7b1;
-  --sev-low-tint: #232a30;
-
-  --ok: #67b58c;
-  --ok-tint: #172b21;
-  --escalated: #ab8dd8;
-  --escalated-tint: #241d33;
-
-  --focus: 0 0 0 2px var(--ground), 0 0 0 4px var(--accent);
-}
-
-/* The review workspace is always dark, whatever the page theme: a light
-   surround next to video footage both fatigues the eye over a shift and
-   hides detail in the frame. Scoped, so it does not leak to other routes. */
-[data-surface='dark'] {
-  --ground: #0f1214;
-  --surface: #181d21;
-  --surface-raised: #21272c;
-  --surface-sunken: #090b0d;
-  --surface-hover: #232a30;
-
-  --ink: #e7eaec;
-  --ink-2: #a8b2ba;
-  --ink-3: #7f8b94;
-
-  --line: #2b3238;
-  --line-strong: #444e57;
-
-  --accent: #7ea6cd;
-  --accent-hover: #9cbcdc;
-  --accent-tint: #1e2c3a;
-  --on-accent: #0e1418;
-
-  --sev-high: #ef8368;
-  --sev-high-tint: #35201b;
-  --sev-medium: #dfa63c;
-  --sev-medium-tint: #322717;
-  --sev-low: #9aa7b1;
-  --sev-low-tint: #232a30;
-
-  --ok: #67b58c;
-  --ok-tint: #172b21;
-  --escalated: #ab8dd8;
-  --escalated-tint: #241d33;
-
-  --focus: 0 0 0 2px var(--ground), 0 0 0 4px var(--accent);
 }

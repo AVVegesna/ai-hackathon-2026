@@ -20,14 +20,27 @@ export function runDetectionTask(videoId, inputPath, outputPath, modelName = 'do
     current_count: 0
   };
 
-  const rootDir = path.resolve(BASE_DIR, '..');
+  // The root to put on sys.path, i.e. the directory that contains
+  // backend/detector.py. Resolved rather than hardcoded: the detector lives
+  // inside the repo on a clean checkout, but one level further up on setups
+  // where the repo was cloned into an outer project folder. Search both, and
+  // let DETECTOR_ROOT override when it is somewhere else entirely.
+  const candidateRoots = [
+    process.env.DETECTOR_ROOT,
+    path.resolve(BASE_DIR, '..'), // repo root — backend/detector.py
+    path.resolve(BASE_DIR, '..', '..'), // outer project folder
+  ].filter(Boolean);
+
+  const projectRootDir =
+    candidateRoots.find((root) => fs.existsSync(path.join(root, 'backend', 'detector.py'))) ||
+    candidateRoots[1];
   
   // Python script execution to run detector.py
   const pythonScript = `
 import sys
 import json
 import os
-sys.path.append(r"${rootDir}")
+sys.path.insert(0, r"${projectRootDir}")
 
 from backend.detector import process_video_frames
 
@@ -60,7 +73,7 @@ sys.exit(0)
   // spawning 'python' fails with ENOENT before the detector is ever reached.
   // Honour an explicit override, then fall back to python3.
   const interpreter = process.env.PYTHON_BIN || 'python3';
-  const pyProc = spawn(interpreter, ['-c', pythonScript], { cwd: rootDir });
+  const pyProc = spawn(interpreter, ['-c', pythonScript], { cwd: projectRootDir });
 
   pyProc.stdout.on('data', (data) => {
     const lines = data.toString().split('\n');
