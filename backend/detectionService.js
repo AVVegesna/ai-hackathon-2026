@@ -12,7 +12,7 @@ if (!fs.existsSync(RESULTS_DIR)) fs.mkdirSync(RESULTS_DIR, { recursive: true });
 
 export const activeTasks = {};
 
-export function runDetectionTask(videoId, inputPath, outputPath, modelName = 'dolphin', confidence = 0.25) {
+export function runDetectionTask(videoId, inputPath, outputPath, modelName = 'dolphin', confidence = 0.15) {
   activeTasks[videoId] = {
     status: 'starting',
     progress: 0,
