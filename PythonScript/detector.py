@@ -75,8 +75,8 @@ def load_yolo_model(model_name: str, progress_callback=None):
     if model_name == "dolphin":
         from ultralytics import YOLOWorld
         model = YOLOWorld(model_path)
-        # Set enriched prompts for multi-angle marine mammal recall
-        model.set_classes(["dolphin", "bottlenose dolphin", "porpoise", "marine mammal", "sea mammal", "fish"])
+        # Exclusively target dolphins and marine mammals
+        model.set_classes(["dolphin", "bottlenose dolphin", "porpoise", "marine mammal", "sea mammal"])
     else:
         model = YOLO(model_path)
         
@@ -119,17 +119,17 @@ def draw_cyberpunk_box(img, x1, y1, x2, y2, label, confidence, color=(0, 255, 17
     cv2.rectangle(img, (badge_x1, badge_y1), (badge_x2, badge_y2), color, -1)
     cv2.putText(img, txt, (badge_x1 + 5, badge_y2 - 4), font, font_scale, (20, 20, 20), thickness, cv2.LINE_AA)
 
-def draw_hud_overlay(img, frame_idx, total_frames, fish_count, fps_processing, model_label, count_label="FISH COUNT", dolphin_count=0):
+def draw_hud_overlay(img, frame_idx, total_frames, count_value, fps_processing, model_label, count_label="DOLPHIN COUNT", dolphin_count=0):
     """Draws a professional sci-fi HUD card on the top left of the video frame."""
     h, w, _ = img.shape
     
-    card_w, card_h = 250, 130 if dolphin_count > 0 else 115
+    card_w, card_h = 260, 125 if dolphin_count > 0 else 110
     card_x, card_y = 20, 20
     
     overlay = img.copy()
-    card_bg_color = (40, 15, 60) if dolphin_count > 0 else (15, 23, 42)
+    card_bg_color = (45, 10, 55) if dolphin_count > 0 else (15, 23, 42)
     cv2.rectangle(overlay, (card_x, card_y), (card_x + card_w, card_y + card_h), card_bg_color, -1)
-    cv2.addWeighted(overlay, 0.8, img, 0.2, 0, img)
+    cv2.addWeighted(overlay, 0.85, img, 0.15, 0, img)
     
     border_color = (255, 0, 255) if dolphin_count > 0 else (0, 255, 170)
     cv2.rectangle(img, (card_x, card_y), (card_x + card_w, card_y + card_h), border_color, 1)
@@ -148,10 +148,11 @@ def draw_hud_overlay(img, frame_idx, total_frames, fish_count, fps_processing, m
     
     cv2.putText(img, f"SPEED: {fps_processing:.1f} FPS", (card_x + 12, card_y + 74), font, 0.36, (200, 220, 220), 1, cv2.LINE_AA)
     
-    cv2.putText(img, f"{count_label}: {fish_count}", (card_x + 12, card_y + 94), font, 0.42, (52, 211, 153), 1, cv2.LINE_AA)
+    count_text_color = (255, 0, 255) if "DOLPHIN" in count_label else (52, 211, 153)
+    cv2.putText(img, f"{count_label}: {count_value}", (card_x + 12, card_y + 95), font, 0.45, count_text_color, 2, cv2.LINE_AA)
 
-    if dolphin_count > 0:
-        cv2.putText(img, f"DOLPHIN ALERT: {dolphin_count}", (card_x + 12, card_y + 114), font, 0.45, (255, 0, 255), 2, cv2.LINE_AA)
+    if dolphin_count > 0 and "DOLPHIN" not in count_label:
+        cv2.putText(img, f"DOLPHIN ALERT: {dolphin_count}", (card_x + 12, card_y + 115), font, 0.45, (255, 0, 255), 2, cv2.LINE_AA)
 
 def process_video_frames(input_path: str, output_path: str, model_name: str, confidence: float, progress_callback):
     """Processes a video frame-by-frame, runs YOLOv8 fish/dolphin detection, overlays graphics, and encodes H.264 video."""
@@ -232,28 +233,29 @@ def process_video_frames(input_path: str, output_path: str, model_name: str, con
                         cls_id = int(box.cls[0])
                         conf = float(box.conf[0])
                         
-                        label = "Fish"
+                        label = "Dolphin" if model_name == "dolphin" else "Fish"
                         if model_cfg["classes"] is not None:
-                            label = model_cfg["classes"].get(cls_id, "Fish")
+                            label = model_cfg["classes"].get(cls_id, label)
                         else:
                             cls_name = model.names.get(cls_id, "object")
                             label = cls_name.capitalize()
                             
                         label_lower = label.lower()
-                        if any(kw in label_lower for kw in ["dolphin", "porpoise", "mammal", "whale"]):
+                        if model_name == "dolphin" or any(kw in label_lower for kw in ["dolphin", "porpoise", "mammal", "whale"]):
                             dolphin_in_frame += 1
+                            total_in_frame += 1
                             box_color = color_dolphin
                             display_label = "🐬 DOLPHIN"
                         elif "fish" in label_lower:
                             fish_in_frame += 1
+                            total_in_frame += 1
                             box_color = color_fish
                             display_label = label
                         else:
                             fish_in_frame += 1
+                            total_in_frame += 1
                             box_color = color_default
                             display_label = label
-
-                        total_in_frame += 1
                         
                         xyxy = box.xyxy[0].tolist()
                         detections.append({
@@ -293,17 +295,21 @@ def process_video_frames(input_path: str, output_path: str, model_name: str, con
             frame_dur = time.time() - frame_start
             fps_processing = 1.0 / frame_dur if frame_dur > 0 else 30.0
             
-            count_label = "FISH COUNT"
             if model_name == "dolphin":
-                count_label = "FISH COUNT"
+                count_label = "🐬 DOLPHIN COUNT"
+                main_count_value = dolphin_in_frame
             elif model_name == "coco":
                 count_label = "OBJECT COUNT"
+                main_count_value = total_in_frame
+            else:
+                count_label = "FISH COUNT"
+                main_count_value = fish_in_frame
                 
             draw_hud_overlay(
                 frame, 
                 frame_idx, 
                 total_frames, 
-                fish_in_frame, 
+                main_count_value, 
                 fps_processing, 
                 model_label, 
                 count_label, 
