@@ -96,7 +96,7 @@ export default function FleetOverviewRoute() {
             <FleetMap
               positions={positions}
               vesselsTotal={t.vessels_total}
-              onSelect={(v) => navigate(`/vessels/${v.id}`)}
+              onOpen={(v) => navigate(`/vessels/${v.id}`)}
             />
           </div>
         </div>

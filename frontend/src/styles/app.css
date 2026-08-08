@@ -1218,35 +1218,103 @@ table.data tbody tr.static-row:hover {
   height: 11px;
 }
 
-.map-tip {
+.map-stage {
+  position: relative;
+}
+
+.map-svg {
+  cursor: grab;
+  touch-action: none;
+}
+
+.map-svg[data-panning='true'] {
+  cursor: grabbing;
+}
+
+.map-svg:focus-visible {
+  box-shadow: var(--focus);
+}
+
+.map-label {
+  fill: var(--ink);
+  paint-order: stroke;
+  stroke: var(--surface-raised);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  font-family: var(--font-body);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* Zoom controls sit over the map rather than beside it, so the map keeps its
+   full width at every breakpoint. */
+.map-controls {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(3px);
+}
+
+.map-scale {
+  font-size: 11px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  min-width: 2.6em;
+  text-align: right;
+  padding-right: 2px;
+}
+
+.map-card {
   position: absolute;
   top: var(--space-2);
   left: var(--space-2);
+  width: 234px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: var(--space-2) var(--space-3);
+  gap: var(--space-2);
+  padding: var(--space-3);
   background: var(--surface-raised);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-md);
   font-size: 12px;
-  pointer-events: none;
-  max-width: 220px;
 }
 
-.map-tip b {
+.map-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.map-card-head b {
   font-size: 13px;
+  flex: 1 1 auto;
 }
 
-.map-tip span {
-  color: var(--ink-2);
+.map-card-head button {
+  margin: -4px -6px 0 0;
+}
+
+.map-card-meta {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.map-card-meta span {
   font-variant-numeric: tabular-nums;
 }
 
-.map-tip .badge {
-  align-self: flex-start;
-  margin-top: 2px;
+.map-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-3);
 }
 
 .map-foot {
