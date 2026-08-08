@@ -2,7 +2,7 @@ import React from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from './lib/api'
-import { useDensity, useSession } from './lib/prefs'
+import { useSession } from './lib/prefs'
 import QueueRoute from './routes/QueueRoute'
 import ReviewRoute from './routes/ReviewRoute'
 import FleetRoute from './routes/FleetRoute'
@@ -16,7 +16,6 @@ import './styles/app.css'
 
 export default function App() {
   const session = useSession()
-  const { density, toggle } = useDensity()
 
   // The open-flag count sits in the nav because it is the one number that
   // should follow a reviewer around the app.
@@ -45,15 +44,6 @@ export default function App() {
         </nav>
 
         <div className="topbar-end">
-          <button
-            type="button"
-            className="btn btn-sm btn-ghost"
-            onClick={toggle}
-            title="Row density"
-            aria-label={`Row density: ${density}. Click to change.`}
-          >
-            {density === 'compact' ? 'Compact' : 'Comfortable'}
-          </button>
           <div className="whoami">
             <b>{session.name}</b>
             <span>{session.role}</span>

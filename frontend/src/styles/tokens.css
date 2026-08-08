@@ -57,16 +57,10 @@
   --escalated-tint: #e8e1f3;
 
   /* --- Density -----------------------------------------------------------
-     Compact is the default: this is a tool where rows on screen matter. */
+     One density, tuned tight: this is a tool where rows on screen matter. */
   --row-h: 34px;
   --cell-y: 6px;
   --control-h: 30px;
 
   --focus: 0 0 0 2px var(--ground), 0 0 0 4px var(--accent);
-}
-
-:root[data-density='comfortable'] {
-  --row-h: 44px;
-  --cell-y: 11px;
-  --control-h: 36px;
 }
