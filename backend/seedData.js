@@ -18,12 +18,18 @@ const seedVessels = [
   { name: 'FV Southern Breeze', imo: '9345678', licence: 'NZ-TR-4501', gear: 'Bottom trawl', captain: 'Thomas Anderson', crew_count: 7 , latitude: -44.75, longitude: 170.95, activity: 'transit' },
 ];
 
-// The one clip we actually hold media for. Everything else is metadata only,
-// and the player says so rather than pretending to have footage.
-const REAL_CLIP = '/uploads/1786156325478_aqi8no.mp4';
+// The clips we actually hold media for, paired with the detector's annotated
+// render. Everything else is metadata only, and the player says so rather
+// than pretending to have footage.
+const ALBATROSS_CLIP = '/uploads/1786156325478_aqi8no.mp4';
+const ALBATROSS_PROCESSED = '/results/1786156325478_aqi8no_processed.mp4';
+const DOLPHIN_CLIP_1 = '/uploads/1786229258928_u3g659.mp4';
+const DOLPHIN_PROCESSED_1 = '/results/1786229258928_u3g659_processed.mp4';
+const DOLPHIN_CLIP_2 = '/uploads/1786229763906_k9c53i.mp4';
+const DOLPHIN_PROCESSED_2 = '/results/1786229763906_k9c53i_processed.mp4';
 
 const seedRecordings = [
-  { vessel_id: 1, recording_date: '2024-01-15', start_time: '09:30:00', end_time: '12:15:00', duration_minutes: 165, cameras_count: 4, hauls_count: 5, media_url: REAL_CLIP },
+  { vessel_id: 1, recording_date: '2024-01-15', start_time: '09:30:00', end_time: '12:15:00', duration_minutes: 165, cameras_count: 4, hauls_count: 5, media_url: ALBATROSS_CLIP, processed_media_url: ALBATROSS_PROCESSED },
   { vessel_id: 1, recording_date: '2024-01-14', start_time: '08:45:00', end_time: '14:30:00', duration_minutes: 345, cameras_count: 4, hauls_count: 3 },
   { vessel_id: 1, recording_date: '2024-01-13', start_time: '10:00:00', end_time: '15:20:00', duration_minutes: 320, cameras_count: 4, hauls_count: 4 },
   { vessel_id: 2, recording_date: '2024-01-15', start_time: '07:00:00', end_time: '16:30:00', duration_minutes: 570, cameras_count: 4, hauls_count: 6 },
@@ -31,6 +37,10 @@ const seedRecordings = [
   { vessel_id: 3, recording_date: '2024-01-15', start_time: '06:30:00', end_time: '18:00:00', duration_minutes: 690, cameras_count: 2, hauls_count: 8 },
   { vessel_id: 4, recording_date: '2024-01-14', start_time: '09:00:00', end_time: '15:30:00', duration_minutes: 390, cameras_count: 3, hauls_count: 4 },
   { vessel_id: 5, recording_date: '2024-01-12', start_time: '10:00:00', end_time: '16:45:00', duration_minutes: 405, cameras_count: 2, hauls_count: 3 },
+  // Recordings 9 and 10 are the two dolphin detector sample clips, so the
+  // model's dolphin_events have somewhere to attach as flags below.
+  { vessel_id: 2, recording_date: '2024-01-16', start_time: '11:00:00', end_time: '11:15:00', duration_minutes: 10, cameras_count: 1, hauls_count: 1, media_url: DOLPHIN_CLIP_1, processed_media_url: DOLPHIN_PROCESSED_1 },
+  { vessel_id: 3, recording_date: '2024-01-16', start_time: '13:00:00', end_time: '13:15:00', duration_minutes: 10, cameras_count: 1, hauls_count: 1, media_url: DOLPHIN_CLIP_2, processed_media_url: DOLPHIN_PROCESSED_2 },
 ];
 
 // days_ago drives due_at, so the seeded queue has a realistic spread of
@@ -49,6 +59,12 @@ const seedFlags = [
   { recording_id: 6, flag_type: 'Bycatch species', severity: 'High', timestamp_seconds: 3600, description: 'Dolphin detected in net', camera_id: 1, days_ago: 7, assigned_to: 'M. Okafor' },
   { recording_id: 7, flag_type: 'Gear configuration', severity: 'Medium', timestamp_seconds: 900, description: 'Possible unreported gear change', camera_id: 2, days_ago: 3, assigned_to: null },
   { recording_id: 8, flag_type: 'Foreign material', severity: 'Low', timestamp_seconds: 1500, description: 'Plastic waste in catch', camera_id: 1, days_ago: 0, assigned_to: null },
+  // Recordings 9 and 10 hold real media, so keep these timestamps inside the
+  // detector's actual dolphin_events for that clip (see backend/results/*_meta.json).
+  { recording_id: 9, flag_type: 'Bycatch species', severity: 'High', timestamp_seconds: 1, description: 'Dolphin detected in net (YOLO-World, peak count 1)', camera_id: 1, days_ago: 1, assigned_to: null },
+  { recording_id: 9, flag_type: 'Bycatch species', severity: 'High', timestamp_seconds: 5, description: 'Dolphin detected in net (YOLO-World, peak count 1)', camera_id: 1, days_ago: 1, assigned_to: null },
+  { recording_id: 10, flag_type: 'Bycatch species', severity: 'High', timestamp_seconds: 1, description: 'Dolphin detected in net (YOLO-World, peak count 1)', camera_id: 1, days_ago: 0, assigned_to: null },
+  { recording_id: 10, flag_type: 'Bycatch species', severity: 'High', timestamp_seconds: 5, description: 'Dolphin detected in net (YOLO-World, peak count 1)', camera_id: 1, days_ago: 0, assigned_to: null },
 ];
 
 export async function seedDatabase() {
@@ -94,8 +110,8 @@ export async function seedDatabase() {
     console.log('📹 Adding recordings...');
     for (const recording of seedRecordings) {
       const { id } = await run(
-        'INSERT INTO recordings (vessel_id, recording_date, start_time, end_time, duration_minutes, cameras_count, hauls_count, status, media_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [vesselIds[recording.vessel_id - 1], recording.recording_date, recording.start_time, recording.end_time, recording.duration_minutes, recording.cameras_count, recording.hauls_count, 'active', recording.media_url || null]
+        'INSERT INTO recordings (vessel_id, recording_date, start_time, end_time, duration_minutes, cameras_count, hauls_count, status, media_url, processed_media_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [vesselIds[recording.vessel_id - 1], recording.recording_date, recording.start_time, recording.end_time, recording.duration_minutes, recording.cameras_count, recording.hauls_count, 'active', recording.media_url || null, recording.processed_media_url || null]
       );
       recordingIds.push(id);
     }
