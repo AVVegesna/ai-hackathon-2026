@@ -2,6 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import { spawn } from 'child_process';
 import { createFlag } from './routes/flags.js';
+import { getOrCreateRecordingForUpload } from './routes/recordings.js';
 
 const BASE_DIR = process.cwd();
 export const UPLOADS_DIR = path.join(BASE_DIR, 'uploads');
@@ -12,7 +13,7 @@ if (!fs.existsSync(RESULTS_DIR)) fs.mkdirSync(RESULTS_DIR, { recursive: true });
 
 export const activeTasks = {};
 
-export function runDetectionTask(videoId, inputPath, outputPath, modelName = 'dolphin', confidence = 0.15) {
+export function runDetectionTask(videoId, inputPath, outputPath, modelName = 'dolphin', confidence = 0.15, vesselId = null) {
   activeTasks[videoId] = {
     status: 'starting',
     progress: 0,
@@ -113,20 +114,33 @@ sys.exit(0)
           activeTasks[videoId].message = 'Dolphin detection completed!';
           activeTasks[videoId].result = meta;
 
-          // Auto-generate SQLite DB flags if dolphins were detected
+          // Raise a flag per detected event, attached to a real recording for
+          // this upload. Every event is raised, not the first five: silently
+          // dropping the rest would let a genuine bycatch event go unreviewed.
           if (meta.has_dolphin && meta.dolphin_events && meta.dolphin_events.length > 0) {
-            const sampledEvents = meta.dolphin_events.slice(0, 5);
-            for (const ev of sampledEvents) {
-              createFlag({
-                recording_id: 1,
-                flag_type: 'Bycatch species',
-                severity: 'High',
-                timestamp_seconds: Math.round(ev.timestamp),
-                description: `Dolphin detected in video feed (Count: ${ev.count}) at ${Math.round(ev.timestamp)}s`,
-                camera_id: 1
-              }).catch(err => console.error('Error recording dolphin flag:', err));
-            }
-            console.log(`✓ Auto-generated ${sampledEvents.length} dolphin flags in SQLite database for ${videoId}`);
+            getOrCreateRecordingForUpload({
+              videoId,
+              mediaUrl: `/uploads/${path.basename(inputPath)}`,
+              vesselId,
+              durationSeconds: meta.duration_seconds
+            })
+              .then(async (recording) => {
+                for (const ev of meta.dolphin_events) {
+                  await createFlag({
+                    recording_id: recording.id,
+                    flag_type: 'Bycatch species',
+                    severity: 'High',
+                    timestamp_seconds: Math.round(ev.timestamp),
+                    description: `Automated detection: ${ev.count} dolphin at ${Math.round(ev.timestamp)}s (confidence threshold ${confidence})`,
+                    camera_id: 1,
+                    raised_by: 'detector'
+                  });
+                }
+                console.log(
+                  `✓ Raised ${meta.dolphin_events.length} flag(s) on recording ${recording.id} for ${videoId}`
+                );
+              })
+              .catch((err) => console.error('Error raising detection flags:', err));
           }
         } else if (parsed.type === 'error') {
           activeTasks[videoId].status = 'failed';

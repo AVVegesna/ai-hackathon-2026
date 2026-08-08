@@ -915,3 +915,225 @@ table.data tbody tr.static-row:hover {
 .det-resolved p {
   margin: 0;
 }
+
+/* --- Ingest: confidence, compare, detection timeline -------------------- */
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.slider {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+.slider-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  min-width: 3.2em;
+  text-align: right;
+}
+
+.compare {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+@media (max-width: 780px) {
+  .compare-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.compare-pane {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.compare-pane figcaption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.compare-pane video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #000;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  display: block;
+}
+
+.compare-scrub {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* Bars are laid out by flex rather than positioned, so the strip adapts to
+   however many buckets the detector returned. */
+.timeline-plot {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 64px;
+  padding: 0 1px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: crosshair;
+  overflow: hidden;
+}
+
+.timeline-bar {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 1px;
+  background: var(--sev-low);
+  border-radius: 1px 1px 0 0;
+}
+
+.timeline-bar[data-kind='dolphin'] {
+  background: var(--sev-high);
+}
+.timeline-bar[data-kind='fish'] {
+  background: var(--accent);
+}
+.timeline-bar[data-kind='none'] {
+  background: transparent;
+}
+
+.timeline-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 11px;
+}
+
+.timeline-readout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  display: block;
+}
+
+/* --- Footage list with stills ------------------------------------------- */
+
+.thumb {
+  display: block;
+  flex: 0 0 auto;
+  width: 84px;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+.thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-sunken);
+  color: var(--ink-3);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.footage-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.footage-list button {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  border-left: 2px solid transparent;
+}
+
+.footage-list button:hover {
+  background: var(--surface-hover);
+}
+
+.footage-list button[aria-current='true'] {
+  background: var(--accent-tint);
+  border-left-color: var(--accent);
+}
+
+.footage-list button:focus-visible {
+  box-shadow: var(--focus);
+}
+
+.footage-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.footage-name {
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

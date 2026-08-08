@@ -71,6 +71,7 @@ export const api = {
 
   videos: () => request('/videos'),
   detectionStatus: (videoId) => request(`/status/${videoId}`),
+  detectionResults: (videoId) => request(`/results/${videoId}`),
   startDetection: (videoId, body) =>
     request(`/detect/${videoId}`, { method: 'POST', body: JSON.stringify(body || {}) }),
 };

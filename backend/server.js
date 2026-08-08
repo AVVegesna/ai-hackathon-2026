@@ -161,7 +161,8 @@ app.post('/api/detect/:videoId', (req, res) => {
   const outputFilename = `${videoId}_processed.mp4`;
   const outputPath = path.join(RESULTS_DIR, outputFilename);
 
-  runDetectionTask(videoId, inputPath, outputPath, modelName, confidence);
+  const vesselId = req.body.vessel_id ? Number(req.body.vessel_id) : null;
+  runDetectionTask(videoId, inputPath, outputPath, modelName, confidence, vesselId);
 
   res.json({ status: 'started', video_id: videoId });
 });

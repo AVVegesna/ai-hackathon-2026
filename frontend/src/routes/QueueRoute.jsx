@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 import { formatDate, timecode } from '../lib/format'
 import { SeverityBadge, DueBadge, Kbd } from '../components/ui/Badges'
 import { TableSkeleton, EmptyState, ErrorState } from '../components/ui/States'
+import Stat from '../components/ui/Stat'
 
 // The queue is home. The unit of work is a flagged event with a deadline,
 // not a vessel — so this is the list a reviewer starts their shift on.
@@ -331,16 +332,6 @@ function QueueStats({ query }) {
       <Stat label="Overdue" value={t.flags_overdue} note="Past review window" alert={t.flags_overdue > 0} />
       <Stat label="High severity" value={high} note="Open, highest priority" alert={high > 0} />
       <Stat label="Determined" value={t.flags_resolved} note="Recorded to date" />
-    </div>
-  )
-}
-
-function Stat({ label, value, note, alert }) {
-  return (
-    <div className={`stat${alert ? ' stat-alert' : ''}`}>
-      <div className="stat-label">{label}</div>
-      <div className="stat-value">{value}</div>
-      <div className="stat-note">{note}</div>
     </div>
   )
 }

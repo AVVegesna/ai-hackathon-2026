@@ -4,6 +4,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import { timecode } from '../lib/format'
 import { EmptyState, ErrorState, Skeleton } from '../components/ui/States'
+import CompareVideos from '../components/CompareVideos'
+import DetectionTimeline from '../components/DetectionTimeline'
+import Stat from '../components/ui/Stat'
+import VideoThumb from '../components/VideoThumb'
 
 // Upload footage and run automated detection over it. Detection is a triage
 // aid that proposes flags — a reviewer still makes every determination.
@@ -18,14 +22,30 @@ const TERMINAL = ['completed', 'failed']
 export default function UploadRoute() {
   const qc = useQueryClient()
   const fileInput = useRef(null)
+  const compareRef = useRef(null)
 
   const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState(null)
   const [selected, setSelected] = useState(null)
   const [status, setStatus] = useState(null)
+  const [confidence, setConfidence] = useState(0.25)
+  const [vesselId, setVesselId] = useState('')
 
   const videos = useQuery({ queryKey: ['videos'], queryFn: api.videos })
+  const vessels = useQuery({ queryKey: ['vessels'], queryFn: api.vessels })
+
+  // The processed video URL only comes back from /api/results, so fetch it
+  // once a run has completed rather than guessing the filename.
+  const results = useQuery({
+    queryKey: ['detectionResults', selected],
+    queryFn: () => api.detectionResults(selected),
+    enabled: Boolean(selected) && status?.status === 'completed',
+  })
+
+  const selectedVideo = (videos.data || []).find((v) => v.video_id === selected)
+  const originalUrl = selectedVideo?.url || (selected ? `/uploads/${selected}.mp4` : null)
+  const processedUrl = results.data?.processed_video_url || null
 
   // Poll only while a run is genuinely in flight, and stop the moment it
   // reaches a terminal state.
@@ -80,11 +100,15 @@ export default function UploadRoute() {
     if (!selected) return
     setStatus({ status: 'starting', progress: 0, message: 'Requesting detection…' })
     try {
-      await api.startDetection(selected, { model_name: 'dolphin', confidence: 0.25 })
+      await api.startDetection(selected, {
+        model_name: 'dolphin',
+        confidence,
+        vessel_id: vesselId || undefined,
+      })
     } catch (err) {
       setStatus({ status: 'failed', progress: 100, message: err.message })
     }
-  }, [selected])
+  }, [selected, confidence, vesselId])
 
   const running = status && !TERMINAL.includes(status.status)
   const failed = status?.status === 'failed'
@@ -157,10 +181,66 @@ export default function UploadRoute() {
               <div className="card-body col">
                 {!status ? (
                   <>
-                    <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-                      Runs the dolphin detection model over the footage and proposes flags for
-                      review. Nothing is determined automatically.
+                    <p className="muted" style={{ fontSize: 13 }}>
+                      Runs the detection model over the footage and proposes flags for review.
+                      Nothing is determined automatically — every flag it raises still needs a
+                      reviewer's determination.
                     </p>
+
+                    {/* Confidence is a recall/precision trade-off, so say which
+                        way the slider moves rather than just showing a number. */}
+                    <div className="field">
+                      <label htmlFor="confidence">Detection confidence threshold</label>
+                      <div className="slider-row">
+                        <input
+                          id="confidence"
+                          type="range"
+                          className="slider"
+                          min={0.05}
+                          max={0.9}
+                          step={0.05}
+                          value={confidence}
+                          onChange={(e) => setConfidence(Number(e.target.value))}
+                          aria-describedby="confidence-hint"
+                        />
+                        <span className="slider-value">{confidence.toFixed(2)}</span>
+                      </div>
+                      <span className="field-hint" id="confidence-hint">
+                        {confidence <= 0.2
+                          ? 'Low — catches more, including false positives. More to review.'
+                          : confidence >= 0.5
+                            ? 'High — only confident detections. Risks missing genuine events.'
+                            : 'Balanced — the default for routine screening.'}
+                      </span>
+                    </div>
+
+                    {/* Uploads carry no vessel of their own, and a flag has to
+                        hang off a recording that belongs to one. Ask, rather
+                        than attribute footage to a vessel by guesswork. */}
+                    <div className="field">
+                      <label htmlFor="vessel">Attribute this footage to</label>
+                      <select
+                        id="vessel"
+                        className="select"
+                        value={vesselId}
+                        onChange={(e) => setVesselId(e.target.value)}
+                      >
+                        <option value="">Leave unattributed</option>
+                        {(vessels.data || [])
+                          .filter((v) => v.imo !== 'UNASSIGNED')
+                          .map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.name} · IMO {v.imo}
+                            </option>
+                          ))}
+                      </select>
+                      <span className="field-hint">
+                        {vesselId
+                          ? 'Flags will appear on this vessel’s record.'
+                          : 'Flags will be held against “Unattributed uploads” until assigned.'}
+                      </span>
+                    </div>
+
                     <div className="row">
                       <button type="button" className="btn btn-primary" onClick={startDetection}>
                         Run detection
@@ -207,38 +287,125 @@ export default function UploadRoute() {
 
                 {result ? (
                   <div className="col">
-                    <div className="row">
-                      {result.has_dolphin ? (
-                        <span className="badge badge-high">
-                          Detections found · peak {result.peak_dolphin_count ?? 0}
-                        </span>
-                      ) : (
-                        <span className="badge badge-ok">No detections</span>
-                      )}
+                    <div className="stats">
+                      <Stat
+                        label="Peak dolphin count"
+                        value={result.peak_dolphin_count ?? 0}
+                        note="Most in a single frame"
+                        alert={(result.peak_dolphin_count ?? 0) > 0}
+                      />
+                      <Stat
+                        label="Frames with dolphin"
+                        value={result.total_dolphin_frames ?? 0}
+                        note={`of ${result.total_frames ?? 0} sampled`}
+                      />
+                      <Stat
+                        label="Peak all species"
+                        value={result.peak_count ?? 0}
+                        note={`avg ${(result.average_count ?? 0).toFixed(1)} per frame`}
+                      />
+                      <Stat
+                        label="Clip length"
+                        value={timecode(result.duration_seconds)}
+                        note={`${result.fps ?? '—'} fps`}
+                      />
                     </div>
-                    {(result.dolphin_events || []).length > 0 ? (
-                      <div className="table-wrap">
-                        <table className="data">
-                          <thead>
-                            <tr>
-                              <th scope="col">At</th>
-                              <th scope="col">Count</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {result.dolphin_events.slice(0, 10).map((ev, i) => (
-                              <tr key={i} className="static-row">
-                                <td className="mono-time">{timecode(ev.timestamp)}</td>
-                                <td>{ev.count}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+
+                    {/* Before and after, on one playhead. */}
+                    {processedUrl ? (
+                      <>
+                        <h3 className="kicker">Detections drawn on the footage</h3>
+                        <CompareVideos
+                          ref={compareRef}
+                          originalUrl={originalUrl}
+                          processedUrl={processedUrl}
+                        />
+                      </>
                     ) : null}
-                    <p>
-                      <Link to="/queue">Review the flags this raised →</Link>
-                    </p>
+
+                    <h3 className="kicker">Detections across the clip</h3>
+                    <DetectionTimeline
+                      dolphinCounts={result.dolphin_frame_counts}
+                      fishCounts={result.fish_frame_counts}
+                      totalCounts={result.frame_counts}
+                      durationSeconds={result.duration_seconds}
+                      onSeek={(t) => compareRef.current?.seek(t)}
+                    />
+                    <div className="legend">
+                      <span>
+                        <i style={{ background: 'var(--sev-high)' }} />
+                        Dolphin present
+                      </span>
+                      <span>
+                        <i style={{ background: 'var(--accent)' }} />
+                        Other species
+                      </span>
+                    </div>
+
+                    {(result.dolphin_events || []).length > 0 ? (
+                      <>
+                        <h3 className="kicker">
+                          Flags raised — {result.dolphin_events.length} event
+                          {result.dolphin_events.length === 1 ? '' : 's'}
+                        </h3>
+                        <div className="table-wrap">
+                          <table className="data">
+                            <thead>
+                              <tr>
+                                <th scope="col">At</th>
+                                <th scope="col">Count</th>
+                                <th scope="col">Proposed flag</th>
+                                <th scope="col" />
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {result.dolphin_events.map((ev, i) => (
+                                <tr key={i} className="static-row">
+                                  <td className="mono-time">{timecode(ev.timestamp)}</td>
+                                  <td>{ev.count}</td>
+                                  <td>
+                                    <span className="badge badge-high">
+                                      <span className="badge-glyph" aria-hidden="true">
+                                        ▲
+                                      </span>
+                                      Bycatch species
+                                    </span>
+                                  </td>
+                                  <td className="cell-num">
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-ghost"
+                                      onClick={() => compareRef.current?.seek(ev.timestamp)}
+                                      disabled={!processedUrl}
+                                    >
+                                      Jump to
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {/* The detector writes the first five events to the flags
+                            table, so be explicit when the list is longer. */}
+                        {result.dolphin_events.length > 5 ? (
+                          <p className="field-hint">
+                            The first 5 events were written to the review queue. The rest are shown
+                            here but not yet raised as flags.
+                          </p>
+                        ) : null}
+                        <p>
+                          <Link to="/queue?severity=High">Review the flags this raised →</Link>
+                        </p>
+                      </>
+                    ) : (
+                      <div className="row">
+                        <span className="badge badge-ok">No dolphin detected</span>
+                        <span className="muted" style={{ fontSize: 12 }}>
+                          Nothing was added to the review queue.
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ) : null}
               </div>
@@ -263,7 +430,7 @@ export default function UploadRoute() {
               Uploaded recordings will be listed here.
             </EmptyState>
           ) : (
-            <div className="flaglist">
+            <div className="footage-list">
               {videos.data.map((v) => (
                 <button
                   key={v.video_id}
@@ -274,11 +441,21 @@ export default function UploadRoute() {
                     setStatus(v.has_results ? { status: 'idle', progress: 0, message: '' } : null)
                   }}
                 >
-                  <span className="fl-top">
-                    <span style={{ fontWeight: 600, fontSize: 12 }}>{v.filename}</span>
-                  </span>
-                  <span className="fl-type">
-                    {v.has_dolphin ? `Detections · peak ${v.peak_dolphin_count}` : v.status}
+                  <VideoThumb url={v.url} at={1} alt={`Still from ${v.filename}`} />
+                  <span className="footage-meta">
+                    <span className="footage-name">{v.filename}</span>
+                    {v.has_dolphin ? (
+                      <span className="badge badge-high">
+                        <span className="badge-glyph" aria-hidden="true">
+                          ▲
+                        </span>
+                        {v.peak_dolphin_count} dolphin
+                      </span>
+                    ) : v.has_results ? (
+                      <span className="badge badge-ok">Screened · clear</span>
+                    ) : (
+                      <span className="badge badge-neutral">Not screened</span>
+                    )}
                   </span>
                 </button>
               ))}

@@ -60,8 +60,51 @@ export function createRecording(data) {
   });
 }
 
+// An uploaded clip needs a recording row before anything can be flagged
+// against it: the queue joins flags -> recordings -> vessels, so a flag whose
+// recording does not exist is invisible everywhere in the UI. Detection used to
+// hardcode recording_id 1, which stopped resolving the moment the database was
+// re-seeded and silently dropped every detection it raised.
+//
+// Idempotent on media_url, so re-running detection over the same upload reuses
+// the recording instead of creating a duplicate each time.
+export async function getOrCreateRecordingForUpload({ videoId, mediaUrl, vesselId, durationSeconds }) {
+  const existing = await get(`SELECT * FROM recordings WHERE media_url = ?`, [mediaUrl]);
+  if (existing) return existing;
+
+  // Uploads carry no vessel of their own. Rather than attribute footage to an
+  // arbitrary real vessel, park it against a clearly-labelled holding record
+  // that a reviewer can see is unattributed.
+  let vessel_id = vesselId;
+  if (!vessel_id) {
+    const holding = await get(`SELECT id FROM vessels WHERE imo = ?`, ['UNASSIGNED']);
+    if (holding) {
+      vessel_id = holding.id;
+    } else {
+      const created = await run(
+        `INSERT INTO vessels (name, imo, licence, gear, captain, crew_count, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        ['Unattributed uploads', 'UNASSIGNED', 'UNASSIGNED', 'Unknown', null, null, 'holding']
+      );
+      vessel_id = created.id;
+    }
+  }
+
+  const minutes = durationSeconds ? Math.max(1, Math.round(durationSeconds / 60)) : null;
+  const { id } = await run(
+    `INSERT INTO recordings
+       (vessel_id, recording_date, start_time, end_time, duration_minutes,
+        cameras_count, hauls_count, status, media_url)
+     VALUES (?, date('now'), time('now'), time('now'), ?, 1, 1, 'active', ?)`,
+    [vessel_id, minutes, mediaUrl]
+  );
+
+  return get(`SELECT * FROM recordings WHERE id = ?`, [id]);
+}
+
 export default {
   getRecordings,
   getRecordingsByVessel,
-  createRecording
+  createRecording,
+  getOrCreateRecordingForUpload
 };
