@@ -1,0 +1,57 @@
+/* App Styles & Global Theme Tokens */
+:root {
+  --color-bg: #0b0f19;
+  --color-surface: #151d30;
+  --color-surface-hover: #1e2942;
+  --color-text: #f8fafc;
+  --color-text-muted: #94a3b8;
+  --color-accent: #38bdf8;
+  --color-accent-600: #0284c7;
+  --color-accent-700: #0369a1;
+  --color-divider: rgba(255, 255, 255, 0.12);
+  --color-danger: #ef4444;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-dolphin: #d946ef;
+
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Outfit', 'Inter', system-ui, sans-serif;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --radius: 8px;
+  --radius-lg: 12px;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  min-height: 100vh;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a:hover {
+  color: var(--color-accent-600);
+}
+
+textarea, input, select {
+  box-sizing: border-box;
+}
+
+button {
+  font-family: inherit;
+}
+

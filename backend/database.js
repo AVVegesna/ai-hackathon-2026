@@ -89,59 +89,8 @@ export function initializeDatabase() {
       )
     `);
 
-    // Audit log — append-only. Every determination and review writes a row here.
-    // This is the evidentiary backbone: nothing is ever updated in place.
-    db.run(`
-      CREATE TABLE IF NOT EXISTS audit_log (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        entity_type TEXT NOT NULL,
-        entity_id INTEGER NOT NULL,
-        action TEXT NOT NULL,
-        actor TEXT NOT NULL,
-        detail TEXT,
-        vessel_id INTEGER,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    db.run(`CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id)`);
-    db.run(`CREATE INDEX IF NOT EXISTS idx_flags_resolved ON flags(resolved)`);
-    db.run(`CREATE INDEX IF NOT EXISTS idx_recordings_vessel ON recordings(vessel_id)`);
-
     console.log('✓ Database tables initialized');
   });
-}
-
-// Additive column migrations. Existing portal.db files predate these columns,
-// and CREATE TABLE IF NOT EXISTS will not add them, so ALTER each one if absent.
-const MIGRATIONS = [
-  ['recordings', 'media_url', 'TEXT'],
-  // The detector's annotated render, kept alongside the original rather than
-  // replacing it: the original is the evidence, the annotated copy shows what
-  // the model saw. The workspace lets a reviewer switch between them.
-  ['recordings', 'processed_media_url', 'TEXT'],
-  ['flags', 'due_at', 'DATETIME'],
-  ['flags', 'assigned_to', 'TEXT'],
-  ['flags', 'determination', 'TEXT'],
-  // Last known position. Null until an AIS feed supplies one — the fleet map
-  // plots only vessels that actually have a fix and says how many it omitted,
-  // rather than inventing a position to fill the picture.
-  ['vessels', 'latitude', 'REAL'],
-  ['vessels', 'longitude', 'REAL'],
-  // Reported activity at that fix: fishing / transit / in_port.
-  ['vessels', 'activity', 'TEXT'],
-  // Where the position came from, so the UI can be honest about provenance.
-  ['vessels', 'position_source', 'TEXT'],
-];
-
-export async function migrateDatabase() {
-  for (const [table, column, type] of MIGRATIONS) {
-    const cols = await all(`PRAGMA table_info(${table})`);
-    if (!cols.length) continue; // table not created yet
-    if (cols.some((c) => c.name === column)) continue;
-    await run(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
-    console.log(`✓ Migrated ${table}.${column}`);
-  }
 }
 
 export function runSync(query, params = []) {

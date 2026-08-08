@@ -5,14 +5,10 @@ import dotenv from 'dotenv';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { initializeDatabase, migrateDatabase } from './database.js';
+import { initializeDatabase } from './database.js';
 import { getVessels, getVesselById, updateVessel, createVessel } from './routes/vessels.js';
 import { getRecordings, getRecordingsByVessel, createRecording } from './routes/recordings.js';
-import { getFlags, getFlagsByRecording, getFlagById, createFlag, resolveFlag } from './routes/flags.js';
-import { getQueue, getQueueStats, getQueueFacets } from './routes/stats.js';
-import { getReviewsByVessel, createReview } from './routes/reviews.js';
-import { getAudit } from './routes/audit.js';
-import { getFleetOverview } from './routes/fleet.js';
+import { getFlags, getFlagsByRecording, createFlag, resolveFlag } from './routes/flags.js';
 import { UPLOADS_DIR, RESULTS_DIR, activeTasks, runDetectionTask } from './detectionService.js';
 
 dotenv.config();
@@ -48,89 +44,10 @@ const upload = multer({ storage });
 
 // Initialize database
 initializeDatabase();
-// Tables are created inside a db.serialize() block; give them a tick to land
-// before the additive column migrations run against them.
-setTimeout(() => {
-  migrateDatabase().catch((err) => console.error('Migration failed:', err));
-}, 300);
 
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// ---------------------------------------------------------------------------
-// Review queue — the primary work surface. Filtered, sorted and paginated
-// server-side so the client never pulls the whole flag table to narrow it.
-// ---------------------------------------------------------------------------
-app.get('/api/queue', async (req, res) => {
-  try {
-    res.json(await getQueue(req.query));
-  } catch (error) {
-    res.status(error.status || 500).json({ error: error.message });
-  }
-});
-
-app.get('/api/queue/stats', async (req, res) => {
-  try {
-    res.json(await getQueueStats());
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get('/api/queue/facets', async (req, res) => {
-  try {
-    res.json(await getQueueFacets());
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get('/api/flags/:id', async (req, res) => {
-  try {
-    const flag = await getFlagById(req.params.id);
-    if (!flag) return res.status(404).json({ error: 'Flag not found' });
-    res.json(flag);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Reviews — append-only vessel-level determinations
-app.get('/api/vessels/:vesselId/reviews', async (req, res) => {
-  try {
-    res.json(await getReviewsByVessel(req.params.vesselId));
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/api/reviews', async (req, res) => {
-  try {
-    if (!req.body.vessel_id) return res.status(400).json({ error: 'vessel_id is required' });
-    res.status(201).json(await createReview(req.body));
-  } catch (error) {
-    res.status(error.status || 500).json({ error: error.message });
-  }
-});
-
-// Fleet overview — map positions and aggregate figures
-app.get('/api/fleet/overview', async (req, res) => {
-  try {
-    res.json(await getFleetOverview());
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Audit trail — read-only by design
-app.get('/api/audit', async (req, res) => {
-  try {
-    res.json(await getAudit(req.query));
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
 });
 
 // Video Upload & Dolphin Detection API Endpoints
@@ -171,8 +88,7 @@ app.post('/api/detect/:videoId', (req, res) => {
   const outputFilename = `${videoId}_processed.mp4`;
   const outputPath = path.join(RESULTS_DIR, outputFilename);
 
-  const vesselId = req.body.vessel_id ? Number(req.body.vessel_id) : null;
-  runDetectionTask(videoId, inputPath, outputPath, modelName, confidence, vesselId);
+  runDetectionTask(videoId, inputPath, outputPath, modelName, confidence);
 
   res.json({ status: 'started', video_id: videoId });
 });
@@ -366,7 +282,7 @@ app.put('/api/flags/:id/resolve', async (req, res) => {
     if (!flag) return res.status(404).json({ error: 'Flag not found' });
     res.json(flag);
   } catch (error) {
-    res.status(error.status || 500).json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 

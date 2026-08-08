@@ -1,20 +1,12 @@
-# Detection model dependencies for PythonScript/detector.py
-#
-# IMPORTANT: needs Python 3.11 or 3.12. Python 3.13+ has no published
-# torch/ultralytics wheels, so the install fails there.
-#
-# See SETUP.md in the repository root for the full setup steps.
-
-# Video decode/encode and array maths
-opencv-python>=4.9
-numpy>=1.26
-imageio>=2.34
-imageio-ffmpeg>=0.5
-
-# YOLO / YOLO-World inference
-ultralytics>=8.3
-torch>=2.2
-torchvision>=0.17
-
-# YOLO-World text encoder. Not on PyPI — installed from the Ultralytics fork.
-clip @ git+https://github.com/ultralytics/CLIP.git
+# Fisheries AI & Marine Life Dolphin Detector Dependencies
+ultralytics>=8.2.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+imageio>=2.30.0
+imageio-ffmpeg>=0.4.8
+torch>=2.0.0
+torchvision>=0.15.0
+fastapi>=0.100.0
+uvicorn>=0.22.0
+pydantic>=2.0.0
+requests>=2.31.0
