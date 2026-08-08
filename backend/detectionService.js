@@ -20,17 +20,17 @@ export function runDetectionTask(videoId, inputPath, outputPath, modelName = 'do
     current_count: 0
   };
 
-  // Project root containing backend/detector.py (c:\Users\admin\Downloads\AI_Hackathon_2026)
-  const projectRootDir = path.resolve(BASE_DIR, '..', '..');
+  // PythonScript folder containing detector.py (c:\Users\admin\Downloads\AI_Hackathon_2026\ai-hackathon-2026\PythonScript)
+  const pythonScriptDir = path.resolve(BASE_DIR, '..', 'PythonScript');
   
   // Python script execution to run detector.py
   const pythonScript = `
 import sys
 import json
 import os
-sys.path.insert(0, r"${projectRootDir}")
+sys.path.insert(0, r"${pythonScriptDir}")
 
-from backend.detector import process_video_frames
+from detector import process_video_frames
 
 def progress_cb(pct, status, msg, current_count=0):
     print(json.dumps({
@@ -57,7 +57,7 @@ except Exception as e:
 sys.exit(0)
 `;
 
-  const pyProc = spawn('python', ['-c', pythonScript], { cwd: projectRootDir });
+  const pyProc = spawn('python', ['-c', pythonScript], { cwd: pythonScriptDir });
 
   pyProc.stdout.on('data', (data) => {
     const lines = data.toString().split('\n');
