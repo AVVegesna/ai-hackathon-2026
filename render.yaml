@@ -1,0 +1,49 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# One Docker web service: Express serves the React bundle, the API, and uploaded
+# media.
+#
+# Detection is OFF here. The image is Node-only, so the service runs on `starter`
+# and builds in about a minute. The app says detection was not run rather than
+# reporting a clean result it never computed. See DEPLOY.md to turn it back on —
+# it needs a 4GB plan.
+#
+# Deploy: Render Dashboard → New → Blueprint → point at this repo.
+
+services:
+  - type: web
+    name: fisheries-portal
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Closest Render region to NZ. Change before the first deploy if you'd rather
+    # be elsewhere — moving a service with a disk later means recreating it.
+    region: singapore
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # The image already defaults this to false (it tracks what was installed).
+      # Stated explicitly so the deployed behaviour is visible here.
+      - key: DETECTION_ENABLED
+        value: "false"
+      # Writable state lives on the mounted disk below, not the ephemeral
+      # container filesystem.
+      - key: DATA_DIR
+        value: /var/data
+      - key: UPLOADS_DIR
+        value: /var/data/uploads
+      - key: RESULTS_DIR
+        value: /var/data/results
+      # Seeds demo vessels/recordings/flags only when the database is empty.
+      # Set to "false" to leave a fresh database blank.
+      - key: SEED_ON_START
+        value: "true"
+    disk:
+      name: portal-data
+      mountPath: /var/data
+      # Holds the SQLite database and uploaded footage. Raise it if you plan to
+      # keep more than a couple of demo clips — nothing prunes old uploads.
+      sizeGB: 1

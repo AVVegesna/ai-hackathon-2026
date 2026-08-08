@@ -1,0 +1,38 @@
+.git
+.gitignore
+node_modules
+**/node_modules
+.venv
+**/__pycache__
+**/*.pyc
+
+# Built and downloaded artefacts — the image builds/fetches its own.
+frontend/dist
+PythonScript/models
+PythonScript/backend/static
+weights
+
+# Local state, never baked into an image.
+backend/data
+backend/uploads
+backend/results
+uploads
+results
+*.db
+*.log
+.env
+.env.local
+.DS_Store
+
+# Large binaries.
+*.pt
+*.bin
+*.onnx
+*.mp4
+*.avi
+
+# Docs and design assets aren't needed at runtime.
+design
+*.md
+!README.md
+.claude
