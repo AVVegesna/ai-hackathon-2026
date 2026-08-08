@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import FleetView from './components/FleetView'
 import VesselView from './components/VesselView'
+import UploadView from './components/UploadView'
 import './App.css'
 
 const API_URL = 'http://localhost:3000/api'
@@ -93,7 +94,8 @@ function App() {
             padding: 'var(--space-2) var(--space-3)',
             borderRadius: 'var(--radius)',
             cursor: 'pointer',
-            ...(currentView === 'fleet' && { background: 'color-mix(in srgb, var(--color-accent) 10%, transparent)' })
+            fontWeight: currentView === 'fleet' ? '600' : '400',
+            ...(currentView === 'fleet' && { background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)', color: 'var(--color-accent)' })
           }}
           onClick={(e) => {
             e.preventDefault()
@@ -103,6 +105,23 @@ function App() {
           Fleet
         </a>
         
+        <a 
+          style={{ 
+            fontSize: '13px',
+            padding: 'var(--space-2) var(--space-3)',
+            borderRadius: 'var(--radius)',
+            cursor: 'pointer',
+            fontWeight: currentView === 'upload' ? '600' : '400',
+            ...(currentView === 'upload' && { background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)', color: 'var(--color-accent)' })
+          }}
+          onClick={(e) => {
+            e.preventDefault()
+            setCurrentView('upload')
+          }}
+        >
+          📹 Upload Video & AI Detection
+        </a>
+
         <a 
           style={{ 
             fontSize: '13px',
@@ -177,6 +196,12 @@ function App() {
           recordings={recordings}
           flags={flags}
           onBack={handleBackToFleet}
+        />
+      )}
+
+      {!loading && currentView === 'upload' && (
+        <UploadView 
+          onRefreshFleet={fetchVessels}
         />
       )}
     </div>

@@ -2,10 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import { initializeDatabase } from './database.js';
 import { getVessels, getVesselById, updateVessel, createVessel } from './routes/vessels.js';
 import { getRecordings, getRecordingsByVessel, createRecording } from './routes/recordings.js';
 import { getFlags, getFlagsByRecording, createFlag, resolveFlag } from './routes/flags.js';
+import { UPLOADS_DIR, RESULTS_DIR, activeTasks, runDetectionTask } from './detectionService.js';
 
 dotenv.config();
 
@@ -17,12 +21,158 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Serve Static Uploads and Results
+app.use('/uploads', express.static(UPLOADS_DIR));
+app.use('/results', express.static(RESULTS_DIR));
+
+// Configure Multer for Video Uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+  filename: (req, file, cb) => {
+    const videoId = Date.now().toString() + '_' + Math.random().toString(36).substring(2, 8);
+    const ext = path.extname(file.originalname) || '.mp4';
+    cb(null, `${videoId}${ext}`);
+  }
+});
+const upload = multer({ storage });
+
 // Initialize database
 initializeDatabase();
 
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Video Upload & Dolphin Detection API Endpoints
+app.post('/api/upload', upload.single('file'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No video file provided' });
+  }
+  const filename = req.file.filename;
+  const videoId = path.parse(filename).name;
+
+  res.json({
+    video_id: videoId,
+    original_filename: req.file.originalname,
+    filename: filename,
+    url: `/uploads/${filename}`
+  });
+});
+
+app.post('/api/detect/:videoId', (req, res) => {
+  const videoId = req.params.videoId;
+  const modelName = req.body.model_name || 'dolphin';
+  const confidence = parseFloat(req.body.confidence || '0.25');
+
+  let videoFile = null;
+  const files = fs.readdirSync(UPLOADS_DIR);
+  for (const f of files) {
+    if (f.startsWith(videoId)) {
+      videoFile = f;
+      break;
+    }
+  }
+
+  if (!videoFile) {
+    return res.status(404).json({ error: 'Video file not found' });
+  }
+
+  const inputPath = path.join(UPLOADS_DIR, videoFile);
+  const outputFilename = `${videoId}_processed.mp4`;
+  const outputPath = path.join(RESULTS_DIR, outputFilename);
+
+  runDetectionTask(videoId, inputPath, outputPath, modelName, confidence);
+
+  res.json({ status: 'started', video_id: videoId });
+});
+
+app.get('/api/status/:videoId', (req, res) => {
+  const videoId = req.params.videoId;
+
+  if (activeTasks[videoId]) {
+    return res.json(activeTasks[videoId]);
+  }
+
+  const metaPath = path.join(RESULTS_DIR, `${videoId}_meta.json`);
+  if (fs.existsSync(metaPath)) {
+    try {
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      return res.json({
+        status: 'completed',
+        progress: 100,
+        message: 'Processing completed!',
+        result: meta
+      });
+    } catch (e) {}
+  }
+
+  res.json({
+    status: 'idle',
+    progress: 0,
+    message: 'Video uploaded, waiting to start detection.'
+  });
+});
+
+app.get('/api/results/:videoId', (req, res) => {
+  const videoId = req.params.videoId;
+  const metaPath = path.join(RESULTS_DIR, `${videoId}_meta.json`);
+
+  if (!fs.existsSync(metaPath)) {
+    return res.status(404).json({ error: 'Results not ready or not found' });
+  }
+
+  try {
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+    const processedVideo = `${videoId}_processed.mp4`;
+    meta.processed_video_url = `/results/${processedVideo}`;
+    res.json(meta);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to read metadata results' });
+  }
+});
+
+app.get('/api/videos', (req, res) => {
+  const videos = [];
+  if (!fs.existsSync(UPLOADS_DIR)) return res.json(videos);
+
+  const files = fs.readdirSync(UPLOADS_DIR);
+  for (const filename of files) {
+    const videoId = path.parse(filename).name;
+    const metaPath = path.join(RESULTS_DIR, `${videoId}_meta.json`);
+    const hasMeta = fs.existsSync(metaPath);
+
+    let status = 'uploaded';
+    let hasDolphin = false;
+    let peakDolphinCount = 0;
+
+    if (activeTasks[videoId]) {
+      status = activeTasks[videoId].status;
+      if (activeTasks[videoId].result) {
+        hasDolphin = activeTasks[videoId].result.has_dolphin || false;
+        peakDolphinCount = activeTasks[videoId].result.peak_dolphin_count || 0;
+      }
+    } else if (hasMeta) {
+      status = 'completed';
+      try {
+        const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+        hasDolphin = meta.has_dolphin || false;
+        peakDolphinCount = meta.peak_dolphin_count || 0;
+      } catch (e) {}
+    }
+
+    videos.append ? null : videos.push({
+      video_id: videoId,
+      filename: filename,
+      url: `/uploads/${filename}`,
+      status: status,
+      has_results: hasMeta,
+      has_dolphin: hasDolphin,
+      peak_dolphin_count: peakDolphinCount
+    });
+  }
+
+  res.json(videos);
 });
 
 // Vessels endpoints
@@ -132,6 +282,7 @@ app.put('/api/flags/:id/resolve', async (req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`✓ Fisheries Portal API running on http://localhost:${PORT}`);
+  console.log(`✓ Express.js Fisheries Portal API running on http://localhost:${PORT}`);
   console.log(`✓ API docs available at http://localhost:${PORT}/api/health`);
 });
+
