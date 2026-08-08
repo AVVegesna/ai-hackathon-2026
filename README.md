@@ -27,6 +27,12 @@ Set `DETECTION_ENABLED=false` to run without the Python stack; everything except
 detection still works, and the UI reports detection as not run rather than
 implying a clean result.
 
+## Deploying
+
+**→ [DEPLOY.md](DEPLOY.md)** — one Docker web service on Render, described by
+[`render.yaml`](render.yaml). The deployed image is Node-only and runs with
+detection off; enabling it needs a 4GB plan.
+
 ## Screens
 
 | Route | Purpose |
