@@ -1,0 +1,66 @@
+/* ---------------------------------------------------------------------------
+   Token layer.
+
+   The Industry design system is the base: its type, accent and spacing are
+   untouched. This file adds the two things a dense operational tool needs
+   and a wireframe system deliberately does not carry:
+
+     1. A semantic colour vocabulary (severity and status), separate from
+        the steel accent so "needs attention" never reads as "branded".
+     2. Surface elevation, so hierarchy exists. The DS keeps cards as
+        transparent line drawings; in a data-dense tool that leaves every
+        element at identical visual weight.
+
+   The product is light-only by decision — a single ground everywhere, so
+   there is one set of contrast pairs to verify rather than two.
+
+   Deviations are additive. Nothing here overrides an Industry token.
+--------------------------------------------------------------------------- */
+
+@import './vendor/industry.css';
+
+:root {
+  /* --- Surfaces -----------------------------------------------------------
+     Ground is nudged a few points cooler than the DS #f2f2f3 so the neutral
+     leans toward the steel accent rather than sitting dead grey next to it. */
+  --ground: #eceef0;
+  --surface: #f7f8f9;
+  --surface-raised: #ffffff;
+  --surface-sunken: #e2e5e8;
+  --surface-hover: #e6e9ec;
+
+  --ink: #1a1d1f;
+  --ink-2: #4e565c; /* secondary text — 7.0:1 on --ground */
+  --ink-3: #6b757c; /* tertiary / captions — 4.6:1 on --ground */
+
+  --line: #d2d7db;
+  --line-strong: #b4bcc2;
+
+  --accent: #4a6f94;
+  --accent-hover: #3d5d7d;
+  --accent-tint: #dfe8f1;
+  --on-accent: #ffffff;
+
+  /* --- Semantic: severity and status -------------------------------------
+     Text-weight steps, checked against --surface at 4.5:1 or better. Colour
+     never carries meaning alone — every use pairs with a label and a shape. */
+  --sev-high: #b03a24;
+  --sev-high-tint: #f7e2dd;
+  --sev-medium: #8a5d0b;
+  --sev-medium-tint: #f7ecd6;
+  --sev-low: #55636d;
+  --sev-low-tint: #e4e8eb;
+
+  --ok: #2c6a4a;
+  --ok-tint: #dcece3;
+  --escalated: #6a4a94;
+  --escalated-tint: #e8e1f3;
+
+  /* --- Density -----------------------------------------------------------
+     One density, tuned tight: this is a tool where rows on screen matter. */
+  --row-h: 34px;
+  --cell-y: 6px;
+  --control-h: 30px;
+
+  --focus: 0 0 0 2px var(--ground), 0 0 0 4px var(--accent);
+}
