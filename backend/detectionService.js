@@ -13,6 +13,35 @@ if (!fs.existsSync(RESULTS_DIR)) fs.mkdirSync(RESULTS_DIR, { recursive: true });
 
 export const activeTasks = {};
 
+// How far apart two detections must be to count as separate sightings.
+const SIGHTING_GAP_SECONDS = Number(process.env.SIGHTING_GAP_SECONDS || 3);
+
+// Collapse a run of per-frame detections into distinct sightings. Returns the
+// start timestamp of each run and the peak count observed during it.
+export function coalesceEvents(events = [], gap = SIGHTING_GAP_SECONDS) {
+  const sorted = [...events]
+    .filter((e) => e && Number.isFinite(e.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  const out = [];
+  for (const ev of sorted) {
+    const last = out[out.length - 1];
+    if (last && ev.timestamp - last.last_timestamp < gap) {
+      last.last_timestamp = ev.timestamp;
+      last.count = Math.max(last.count, ev.count || 0);
+      last.frames += 1;
+    } else {
+      out.push({
+        timestamp: ev.timestamp,
+        last_timestamp: ev.timestamp,
+        count: ev.count || 0,
+        frames: 1
+      });
+    }
+  }
+  return out;
+}
+
 export function runDetectionTask(videoId, inputPath, outputPath, modelName = 'dolphin', confidence = 0.15, vesselId = null) {
   activeTasks[videoId] = {
     status: 'starting',
@@ -113,30 +142,45 @@ sys.exit(0)
           activeTasks[videoId].message = 'Dolphin detection completed!';
           activeTasks[videoId].result = meta;
 
-          // Raise a flag per detected event, attached to a real recording for
-          // this upload. Every event is raised, not the first five: silently
-          // dropping the rest would let a genuine bycatch event go unreviewed.
-          if (meta.has_dolphin && meta.dolphin_events && meta.dolphin_events.length > 0) {
+          // The detector reports a hit per sampled frame, so one continuous
+          // sighting arrives as a run of events a fraction of a second apart.
+          // Raising a flag for each would put a dozen near-identical items in
+          // the queue for a single dolphin, and a reviewer would have to
+          // determine every one. Coalesce runs into sightings instead: group
+          // events less than SIGHTING_GAP_SECONDS apart, keep the peak count,
+          // and anchor the flag at the start of the run. Nothing is dropped —
+          // distinct sightings all still produce a flag.
+          const sightings = coalesceEvents(meta.dolphin_events);
+
+          if (meta.has_dolphin && sightings.length > 0) {
             getOrCreateRecordingForUpload({
               videoId,
               mediaUrl: `/uploads/${path.basename(inputPath)}`,
+              processedMediaUrl: `/results/${path.basename(outputPath)}`,
               vesselId,
               durationSeconds: meta.duration_seconds
             })
               .then(async (recording) => {
-                for (const ev of meta.dolphin_events) {
+                for (const ev of sightings) {
                   await createFlag({
                     recording_id: recording.id,
                     flag_type: 'Bycatch species',
                     severity: 'High',
                     timestamp_seconds: Math.round(ev.timestamp),
-                    description: `Automated detection: ${ev.count} dolphin at ${Math.round(ev.timestamp)}s (confidence threshold ${confidence})`,
+                    description:
+                      `Automated detection: ${ev.count} dolphin over ` +
+                      `${(ev.last_timestamp - ev.timestamp).toFixed(1)}s ` +
+                      `from ${Math.round(ev.timestamp)}s ` +
+                      `(${ev.frames} frame${ev.frames === 1 ? '' : 's'}, ` +
+                      `confidence threshold ${confidence})`,
                     camera_id: 1,
                     raised_by: 'detector'
                   });
                 }
                 console.log(
-                  `✓ Raised ${meta.dolphin_events.length} flag(s) on recording ${recording.id} for ${videoId}`
+                  `✓ Raised ${sightings.length} flag(s) from ` +
+                    `${meta.dolphin_events.length} detections on recording ` +
+                    `${recording.id} for ${videoId}`
                 );
               })
               .catch((err) => console.error('Error raising detection flags:', err));

@@ -287,6 +287,38 @@ export default function UploadRoute() {
 
                 {result ? (
                   <div className="col">
+                    {/* Re-evaluation. A first pass at one threshold is not the
+                        last word: a reviewer who suspects the model missed
+                        something needs to run it again lower without
+                        re-uploading. Flags are added to the same recording. */}
+                    <div className="rerun">
+                      <div className="field grow">
+                        <label htmlFor="rerun-confidence">
+                          Re-evaluate at a different threshold
+                        </label>
+                        <div className="slider-row">
+                          <input
+                            id="rerun-confidence"
+                            type="range"
+                            className="slider"
+                            min={0.05}
+                            max={0.9}
+                            step={0.05}
+                            value={confidence}
+                            onChange={(e) => setConfidence(Number(e.target.value))}
+                          />
+                          <span className="slider-value">{confidence.toFixed(2)}</span>
+                        </div>
+                        <span className="field-hint">
+                          Replaces the annotated render and adds any new events to this
+                          recording. Determinations already recorded are untouched.
+                        </span>
+                      </div>
+                      <button type="button" className="btn" onClick={startDetection}>
+                        Re-run detection
+                      </button>
+                    </div>
+
                     <div className="stats">
                       <Stat
                         label="Peak dolphin count"

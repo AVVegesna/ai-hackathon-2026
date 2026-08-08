@@ -849,7 +849,11 @@ table.data tbody tr:last-child td {
   font-size: 12px;
 }
 
+/* Both are spans so they can sit inside a grid row without extra wrappers,
+   which means they need display:block — height on an inline element is
+   ignored, and the fill silently renders at zero height. */
 .bar-track {
+  display: block;
   height: 8px;
   background: var(--surface-sunken);
   border-radius: 2px;
@@ -857,7 +861,9 @@ table.data tbody tr:last-child td {
 }
 
 .bar-fill {
+  display: block;
   height: 100%;
+  min-width: 2px;
   background: var(--accent);
   border-radius: 2px;
 }
@@ -1136,4 +1142,208 @@ table.data tbody tr.static-row:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* --- Fleet map ---------------------------------------------------------- */
+
+.map {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.map-svg {
+  width: 100%;
+  height: auto;
+  max-height: 62vh;
+  /* A faint cool wash for sea against light land — reads as a chart rather
+     than as a grey box, without introducing a second accent colour. */
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  display: block;
+}
+
+.map-grid line {
+  stroke: var(--line);
+  stroke-width: 1;
+  stroke-dasharray: 3 5;
+}
+
+.map-land path {
+  fill: var(--surface-raised);
+  stroke: var(--line-strong);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.map-vessel {
+  cursor: pointer;
+}
+
+.map-vessel:focus-visible {
+  outline: none;
+}
+.map-vessel:focus-visible .map-dot {
+  stroke: var(--ink);
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.map-dot {
+  stroke: var(--surface-raised);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.map-vessel:hover .map-dot {
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.map-ring {
+  fill: none;
+  stroke: var(--sev-high);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.legend-ring {
+  border: 1.5px dashed var(--sev-high);
+  border-radius: 50%;
+  background: transparent;
+  width: 11px;
+  height: 11px;
+}
+
+.map-stage {
+  position: relative;
+}
+
+.map-svg {
+  cursor: grab;
+  touch-action: none;
+}
+
+.map-svg[data-panning='true'] {
+  cursor: grabbing;
+}
+
+.map-svg:focus-visible {
+  box-shadow: var(--focus);
+}
+
+.map-label {
+  fill: var(--ink);
+  paint-order: stroke;
+  stroke: var(--surface-raised);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  font-family: var(--font-body);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* Zoom controls sit over the map rather than beside it, so the map keeps its
+   full width at every breakpoint. */
+.map-controls {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(3px);
+}
+
+.map-scale {
+  font-size: 11px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  min-width: 2.6em;
+  text-align: right;
+  padding-right: 2px;
+}
+
+.map-card {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  width: 234px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--surface-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  font-size: 12px;
+}
+
+.map-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.map-card-head b {
+  font-size: 13px;
+  flex: 1 1 auto;
+}
+
+.map-card-head button {
+  margin: -4px -6px 0 0;
+}
+
+.map-card-meta {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.map-card-meta span {
+  font-variant-numeric: tabular-nums;
+}
+
+.map-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.map-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.map-note {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+/* --- Re-evaluate control ------------------------------------------------- */
+
+.rerun {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+@media (max-width: 640px) {
+  .rerun {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }

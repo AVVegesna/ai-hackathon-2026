@@ -41,7 +41,7 @@ const FLAG_SELECT = `
   SELECT
     f.*,
     r.vessel_id, r.recording_date, r.start_time, r.duration_minutes,
-    r.cameras_count, r.media_url,
+    r.cameras_count, r.media_url, r.processed_media_url,
     v.name AS vessel_name, v.imo, v.licence, v.gear
   FROM flags f
   JOIN recordings r ON f.recording_id = r.id

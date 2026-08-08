@@ -102,7 +102,7 @@ export async function getQueue(query = {}) {
     `SELECT
        f.*,
        r.vessel_id, r.recording_date, r.start_time, r.duration_minutes,
-       r.cameras_count, r.media_url,
+       r.cameras_count, r.media_url, r.processed_media_url,
        v.name AS vessel_name, v.imo, v.licence, v.gear,
        CAST(julianday('now') - julianday(f.created_at) AS INTEGER) AS days_old
      FROM flags f

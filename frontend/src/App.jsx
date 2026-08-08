@@ -6,6 +6,7 @@ import { useSession } from './lib/prefs'
 import QueueRoute from './routes/QueueRoute'
 import ReviewRoute from './routes/ReviewRoute'
 import FleetRoute from './routes/FleetRoute'
+import FleetOverviewRoute from './routes/FleetOverviewRoute'
 import VesselRoute from './routes/VesselRoute'
 import ReportsRoute from './routes/ReportsRoute'
 import UploadRoute from './routes/UploadRoute'
@@ -38,6 +39,7 @@ export default function App() {
             Review queue
             {open > 0 ? <span className="count">{open}</span> : null}
           </NavLink>
+          <NavLink to="/fleet">Overview</NavLink>
           <NavLink to="/vessels">Fleet</NavLink>
           <NavLink to="/ingest">Ingest</NavLink>
           <NavLink to="/reports">Reports</NavLink>
@@ -57,6 +59,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/queue" replace />} />
           <Route path="/queue" element={<QueueRoute />} />
           <Route path="/review/:flagId" element={<ReviewRoute />} />
+          <Route path="/fleet" element={<FleetOverviewRoute />} />
           <Route path="/vessels" element={<FleetRoute />} />
           <Route path="/vessels/:vesselId" element={<VesselRoute />} />
           <Route path="/ingest" element={<UploadRoute />} />

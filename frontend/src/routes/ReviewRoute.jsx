@@ -296,6 +296,7 @@ export default function ReviewRoute() {
           <VideoPlayer
             ref={playerRef}
             mediaUrl={f.media_url}
+            processedMediaUrl={f.processed_media_url}
             camerasCount={f.cameras_count}
             flags={recordingFlags.data || []}
             activeFlagId={f.id}

@@ -12,6 +12,7 @@ import { getFlags, getFlagsByRecording, getFlagById, createFlag, resolveFlag } f
 import { getQueue, getQueueStats, getQueueFacets } from './routes/stats.js';
 import { getReviewsByVessel, createReview } from './routes/reviews.js';
 import { getAudit } from './routes/audit.js';
+import { getFleetOverview } from './routes/fleet.js';
 import { UPLOADS_DIR, RESULTS_DIR, activeTasks, runDetectionTask } from './detectionService.js';
 
 dotenv.config();
@@ -111,6 +112,15 @@ app.post('/api/reviews', async (req, res) => {
     res.status(201).json(await createReview(req.body));
   } catch (error) {
     res.status(error.status || 500).json({ error: error.message });
+  }
+});
+
+// Fleet overview — map positions and aggregate figures
+app.get('/api/fleet/overview', async (req, res) => {
+  try {
+    res.json(await getFleetOverview());
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
