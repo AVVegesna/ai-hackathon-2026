@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-3edc0a27-c282-4558-b366-224e41c8c992/styles.css">
+<script src="_ds/industry-3edc0a27-c282-4558-b366-224e41c8c992/_ds_bundle.js"></script>
+<style>
+  body { margin: 0; }
+  a { color: var(--color-accent-700); text-decoration: none; }
+  a:hover { color: var(--color-accent); }
+</style>
+</helmet>
+<div style="min-height:100vh;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body)">
+  <div class="nav" style="border-bottom:1px solid var(--color-divider)">
+    <div class="nav-brand">FISHERIES MONITORING <span style="opacity:.45">/ REVIEW PORTAL</span></div>
+    <a href="#" onClick="{{ goFleet }}">Fleet</a>
+    <a href="#" onClick="{{ goVessel }}">Review queue</a>
+    <a href="#">Reports</a>
+    <span class="tag tag-neutral">M. OKAFOR · OBSERVER GRADE 2</span>
+  </div>
+
+  <sc-if value="{{ isFleet }}" hint-placeholder-val="{{ true }}">
+    <div style="max-width:1180px;margin:0 auto;padding:var(--space-6) var(--space-4)">
+      <div style="display:flex;align-items:flex-end;gap:var(--space-4);margin-bottom:var(--space-5)">
+        <div>
+          <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-accent-700)">Registered vessels</div>
+          <h1 style="font-size:38px;margin:4px 0 0;line-height:1">Fleet</h1>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:var(--space-2);align-items:center">
+          <input class="input" placeholder="Search vessel, licence or IMO" style="width:280px">
+          <button class="btn btn-secondary">Filter</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--color-divider);border:1px solid var(--color-divider);margin-bottom:var(--space-4)">
+        <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+          <div style="background:var(--color-bg);padding:12px 14px">
+            <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;opacity:.5">{{ k.label }}</div>
+            <div style="font-family:var(--font-heading);font-size:30px;line-height:1.1;margin-top:2px">{{ k.value }}</div>
+            <div style="font-size:11px;opacity:.55">{{ k.note }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:var(--space-4);margin-bottom:var(--space-5)">
+        <div class="blueprint" style="padding:var(--space-3)">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.55">Fleet positions — last AIS ping</div>
+            <span style="margin-left:auto;font-size:11px;opacity:.5">EEZ · updated 4 min ago</span>
+          </div>
+          <div style="position:relative;aspect-ratio:16/10;margin-top:var(--space-3);border:1px solid var(--color-divider);background:var(--color-neutral-200)">
+            <div style="position:absolute;inset:0;background-image:linear-gradient(to right,color-mix(in srgb,var(--color-text) 7%,transparent) 1px,transparent 1px),linear-gradient(to bottom,color-mix(in srgb,var(--color-text) 7%,transparent) 1px,transparent 1px);background-size:10% 12.5%"></div>
+            <sc-for list="{{ positions }}" as="p" hint-placeholder-count="5">
+              <div style="position:absolute;left:{{ p.x }};top:{{ p.y }};transform:translate(-50%,-50%);display:flex;align-items:center;gap:6px">
+                <span style="width:9px;height:9px;background:{{ p.dot }};display:block"></span>
+                <span style="font-size:10px;letter-spacing:.06em;white-space:nowrap;opacity:.75">{{ p.name }}</span>
+              </div>
+            </sc-for>
+            <div style="position:absolute;left:10px;bottom:8px;font-size:10px;letter-spacing:.08em;opacity:.45">MAP PLACEHOLDER · NZ EEZ</div>
+          </div>
+          <div style="display:flex;gap:var(--space-3);margin-top:var(--space-2);font-size:11px;opacity:.6">
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;background:var(--color-accent);display:block"></span>Fishing now</span>
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;background:color-mix(in srgb,var(--color-text) 35%,transparent);display:block"></span>In transit</span>
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;background:color-mix(in srgb,var(--color-text) 12%,transparent);display:block"></span>In port</span>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:var(--space-4);min-width:0">
+          <div class="blueprint" style="padding:var(--space-3)">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.55">Flags by category — 30 days</div>
+            <div style="display:flex;flex-direction:column;gap:7px;margin-top:var(--space-3)">
+              <sc-for list="{{ categories }}" as="c" hint-placeholder-count="5">
+                <div style="display:grid;grid-template-columns:130px minmax(80px,1fr) 40px;gap:10px;align-items:center;font-size:13px">
+                  <span>{{ c.name }}</span>
+                  <span style="display:block;height:10px;background:color-mix(in srgb,var(--color-text) 8%,transparent)">
+                    <span style="display:block;height:10px;background:{{ c.fill }};width:{{ c.pct }}"></span>
+                  </span>
+                  <span style="text-align:right;opacity:.7">{{ c.count }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div class="blueprint" style="padding:var(--space-3)">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.55">Review backlog by age</div>
+            <div style="display:flex;align-items:flex-end;gap:6px;height:96px;margin-top:var(--space-3)">
+              <sc-for list="{{ backlog }}" as="b" hint-placeholder-count="7">
+                <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:5px;height:100%">
+                  <span style="font-size:10px;opacity:.5">{{ b.count }}</span>
+                  <span style="width:100%;background:{{ b.fill }};height:{{ b.h }}"></span>
+                  <span style="font-size:10px;opacity:.5">{{ b.day }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="font-size:11px;opacity:.45;margin-top:8px">Statutory review window: 7 days from upload.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="blueprint" style="padding:var(--space-3)">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <table class="table">
+          <thead>
+            <tr><th>Vessel</th><th>IMO</th><th>Licence</th><th>Gear</th><th>Last upload</th><th>Unreviewed flags</th><th></th></tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{ fleet }}" as="v" hint-placeholder-count="5">
+              <tr style="cursor:pointer" onClick="{{ v.open }}">
+                <td style="font-family:var(--font-heading);font-size:16px">{{ v.name }}</td>
+                <td style="opacity:.65">{{ v.imo }}</td>
+                <td style="opacity:.65">{{ v.licence }}</td>
+                <td style="opacity:.65">{{ v.gear }}</td>
+                <td style="opacity:.65">{{ v.upload }}</td>
+                <td><span class="tag tag-accent">{{ v.flags }}</span></td>
+                <td style="text-align:right"><span class="btn btn-ghost" style="pointer-events:none">Open →</span></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isVessel }}" hint-placeholder-val="{{ false }}">
+    <div style="max-width:1400px;margin:0 auto;padding:var(--space-5) var(--space-4)">
+      <div style="display:flex;align-items:flex-start;gap:var(--space-4);margin-bottom:var(--space-4);padding-top:8px">
+        <div>
+          <a href="#" onClick="{{ goFleet }}" style="font-size:12px">← Fleet</a>
+          <h1 style="font-size:34px;margin:6px 0 6px;line-height:1">FV Kaituna Star</h1>
+          <div style="display:flex;gap:8px;align-items:center;font-size:12px;opacity:.7">
+            <span>IMO 9284117</span><span>·</span><span>Licence NZ-TR-4421</span><span>·</span><span>Bottom trawl</span><span>·</span><span>4 cameras</span>
+          </div>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:var(--space-2)">
+          <button class="btn btn-secondary">Export clip</button>
+          <button class="btn btn-secondary">Vessel history</button>
+          <button class="btn btn-primary blueprint">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            Submit review
+          </button>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:var(--space-5);align-items:start">
+        <div style="display:flex;flex-direction:column;gap:var(--space-4);min-width:0">
+          <div style="display:flex;gap:var(--space-2);align-items:center">
+            <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.55;margin-right:4px">Recordings</div>
+            <sc-for list="{{ recordings }}" as="r" hint-placeholder-count="4">
+              <div class="blueprint" onClick="{{ r.open }}" style="cursor:pointer;padding:8px 12px;min-width:130px;background:{{ r.bg }};color:{{ r.fg }}">
+                <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+                <div style="font-family:var(--font-heading);font-size:15px">{{ r.date }}</div>
+                <div style="font-size:11px;opacity:.7">{{ r.meta }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div class="blueprint" style="padding:var(--space-3)">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <div style="display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-2);font-size:12px">
+              <span class="tag tag-outline">{{ camLabel }}</span>
+              <span style="opacity:.6">{{ recordingLabel }}</span>
+              <span style="margin-left:auto;opacity:.6">HAUL 3 OF 5</span>
+            </div>
+            <div style="position:relative;aspect-ratio:16/9;background:var(--color-neutral-200);border:1px solid var(--color-divider);display:flex;align-items:center;justify-content:center">
+              <div style="position:absolute;inset:0;background:linear-gradient(to top right,transparent 49.7%,color-mix(in srgb,var(--color-text) 10%,transparent) 49.7%,color-mix(in srgb,var(--color-text) 10%,transparent) 50.3%,transparent 50.3%),linear-gradient(to bottom right,transparent 49.7%,color-mix(in srgb,var(--color-text) 10%,transparent) 49.7%,color-mix(in srgb,var(--color-text) 10%,transparent) 50.3%,transparent 50.3%)"></div>
+              <div style="text-align:center;font-family:var(--font-heading);letter-spacing:.14em;font-size:14px;opacity:.5">VIDEO PLACEHOLDER</div>
+              <div style="position:absolute;top:10px;left:12px;font-size:11px;letter-spacing:.1em;opacity:.6">{{ clock }}</div>
+              <div style="position:absolute;bottom:10px;right:12px;font-size:11px;letter-spacing:.1em;opacity:.6">{{ activeFlagLabel }}</div>
+            </div>
+
+            <div style="margin-top:var(--space-3)">
+              <div onClick="{{ scrubClick }}" style="position:relative;height:34px;cursor:pointer">
+                <div style="position:absolute;top:15px;left:0;right:0;height:4px;background:color-mix(in srgb,var(--color-text) 12%,transparent)"></div>
+                <div style="position:absolute;top:15px;left:0;height:4px;background:var(--color-accent);width:{{ progressPct }}"></div>
+                <sc-for list="{{ ticks }}" as="k" hint-placeholder-count="6">
+                  <div style="position:absolute;top:6px;height:22px;width:2px;background:var(--color-accent-700);left:{{ k.left }}"></div>
+                </sc-for>
+                <div style="position:absolute;top:8px;width:3px;height:18px;background:var(--color-text);left:{{ progressPct }}"></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:var(--space-2);margin-top:6px">
+                <button class="btn btn-secondary" onClick="{{ togglePlay }}" style="min-width:74px">{{ playLabel }}</button>
+                <button class="btn btn-ghost" onClick="{{ back10 }}">−10s</button>
+                <button class="btn btn-ghost" onClick="{{ fwd10 }}">+10s</button>
+                <span style="font-size:13px;opacity:.7;margin-left:6px">{{ timeLabel }} / {{ durationLabel }}</span>
+                <div class="seg" style="margin-left:auto">
+                  <sc-for list="{{ cams }}" as="c" hint-placeholder-count="4">
+                    <span class="seg-opt" onClick="{{ c.pick }}" style="background:{{ c.bg }};color:{{ c.fg }}">{{ c.name }}</span>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <sc-if value="{{ showHaul }}" hint-placeholder-val="{{ true }}">
+            <div class="blueprint" style="padding:var(--space-3)">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div style="display:flex;align-items:baseline;gap:8px">
+                <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.55">Haul context</div>
+                <span style="margin-left:auto;font-size:11px;opacity:.5">{{ haulLabel }}</span>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--color-divider);border:1px solid var(--color-divider);margin-top:var(--space-3)">
+                <sc-for list="{{ haulSpecs }}" as="k" hint-placeholder-count="8">
+                  <div style="background:var(--color-bg);padding:10px 12px">
+                    <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;opacity:.5">{{ k.label }}</div>
+                    <div style="font-family:var(--font-heading);font-size:20px;line-height:1.15;margin-top:2px">{{ k.value }}</div>
+                    <div style="font-size:11px;opacity:.55">{{ k.note }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <sc-if value="{{ showCatch }}" hint-placeholder-val="{{ true }}">
+                <div style="display:grid;grid-template-columns:minmax(340px,1fr) 180px;gap:var(--space-4);margin-top:var(--space-4)">
+                  <div>
+                    <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.55;margin-bottom:var(--space-2)">Catch distribution — AI estimate</div>
+                    <div style="display:flex;flex-direction:column;gap:7px">
+                      <sc-for list="{{ species }}" as="sp" hint-placeholder-count="5">
+                        <div style="display:grid;grid-template-columns:110px minmax(120px,1fr) 62px 48px;gap:10px;align-items:center;font-size:13px">
+                          <span>{{ sp.name }}</span>
+                          <span style="display:block;height:10px;background:color-mix(in srgb,var(--color-text) 8%,transparent)">
+                            <span style="display:block;height:10px;background:{{ sp.fill }};width:{{ sp.pct }}"></span>
+                          </span>
+                          <span style="text-align:right;opacity:.75">{{ sp.weight }}</span>
+                          <span style="text-align:right;opacity:.5;font-size:11px">{{ sp.conf }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                    <div style="font-size:11px;opacity:.45;margin-top:var(--space-2)">Estimated from {{ frameCount }} classified frames. Not a substitute for the landing declaration.</div>
+                  </div>
+                  <div style="border:1px solid var(--color-divider);padding:10px 12px">
+                    <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;opacity:.5">Set position</div>
+                    <div style="position:relative;aspect-ratio:1;margin-top:8px;border:1px solid var(--color-divider);background:linear-gradient(var(--color-neutral-200) 0 0)">
+                      <div style="position:absolute;inset:0;background-image:linear-gradient(to right,color-mix(in srgb,var(--color-text) 7%,transparent) 1px,transparent 1px),linear-gradient(to bottom,color-mix(in srgb,var(--color-text) 7%,transparent) 1px,transparent 1px);background-size:25% 25%"></div>
+                      <div style="position:absolute;left:58%;top:44%;width:9px;height:9px;margin:-5px 0 0 -5px;background:var(--color-accent)"></div>
+                      <div style="position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:10px;letter-spacing:.08em;opacity:.5">MAP PLACEHOLDER</div>
+                    </div>
+                    <div style="font-size:12px;opacity:.7;margin-top:8px">{{ coords }}</div>
+                    <div style="font-size:12px;opacity:.7">{{ statArea }}</div>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <div class="blueprint" style="padding:var(--space-3)">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.55">Reviewer notes</div>
+            <div style="display:flex;gap:var(--space-2);margin:var(--space-2) 0 var(--space-3)">
+              <span class="tag tag-accent" style="align-self:center;white-space:nowrap">{{ atLabel }}</span>
+              <input class="input" placeholder="Add a timestamped comment" value="{{ draft }}" onChange="{{ onDraft }}" onKeyDown="{{ onDraftKey }}">
+              <button class="btn btn-primary" onClick="{{ addComment }}" style="white-space:nowrap">Add note</button>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ comments }}" as="c" hint-placeholder-count="3">
+                <div style="display:flex;gap:var(--space-3);padding:10px 0;border-top:1px solid color-mix(in srgb,var(--color-text) 8%,transparent)">
+                  <a href="#" onClick="{{ c.seek }}" style="font-family:var(--font-heading);font-size:15px;min-width:56px">{{ c.timeLabel }}</a>
+                  <div style="flex:1">
+                    <div style="font-size:14px">{{ c.text }}</div>
+                    <div style="font-size:11px;opacity:.5;margin-top:2px">{{ c.author }} · {{ c.when }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div class="blueprint" style="padding:var(--space-3);position:sticky;top:var(--space-3)">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.55">AI event flags</div>
+            <span style="margin-left:auto;font-size:11px;opacity:.5">{{ pendingLabel }}</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:var(--space-3)">
+            <sc-for list="{{ flags }}" as="f" hint-placeholder-count="6">
+              <div onClick="{{ f.seek }}" style="cursor:pointer;border:1px solid var(--color-divider);border-left:3px solid {{ f.mark }};padding:8px 10px;background:{{ f.bg }}">
+                <div style="display:flex;align-items:baseline;gap:8px">
+                  <span style="font-family:var(--font-heading);font-size:16px">{{ f.timeLabel }}</span>
+                  <span style="font-size:13px;flex:1">{{ f.label }}</span>
+                  <span style="font-size:11px;opacity:.55">{{ f.conf }}</span>
+                </div>
+                <div style="display:flex;gap:6px;margin-top:6px">
+                  <span class="tag tag-neutral">{{ f.status }}</span>
+                  <span class="tag tag-neutral" style="opacity:.7">{{ f.cam }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:var(--space-4)">
+            <button class="btn btn-secondary btn-block" onClick="{{ clearFlag }}">Mark flag reviewed</button>
+            <button class="btn btn-secondary btn-block" onClick="{{ escalateFlag }}">Escalate to inspection</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1180},&quot;showHaulContext&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Haul context&quot;,&quot;label&quot;:&quot;Show haul context&quot;},&quot;showCatchDistribution&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Haul context&quot;,&quot;label&quot;:&quot;Show catch distribution&quot;},&quot;fishingArea&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Chatham Rise&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Haul context&quot;},&quot;statArea&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Statistical area 020&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Haul context&quot;},&quot;coords&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;43° 28' S · 179° 51' E&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Haul context&quot;},&quot;season&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Summer 2026&quot;,&quot;Autumn 2026&quot;,&quot;Winter 2026&quot;,&quot;Spring 2026&quot;],&quot;default&quot;:&quot;Winter 2026&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Haul context&quot;},&quot;gearType&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Bottom trawl&quot;,&quot;Mid-water trawl&quot;,&quot;Purse seine&quot;,&quot;Bottom longline&quot;,&quot;Pot / trap&quot;],&quot;default&quot;:&quot;Bottom trawl&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Haul context&quot;},&quot;seaTemp&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;min&quot;:6,&quot;max&quot;:24,&quot;step&quot;:0.1,&quot;default&quot;:14.2,&quot;unit&quot;:&quot;°C&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Haul context&quot;},&quot;tempUnit&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;°C&quot;,&quot;°F&quot;],&quot;default&quot;:&quot;°C&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Haul context&quot;},&quot;depth&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;min&quot;:20,&quot;max&quot;:1200,&quot;step&quot;:10,&quot;default&quot;:412,&quot;unit&quot;:&quot;m&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Haul context&quot;},&quot;minConfidence&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;min&quot;:0,&quot;max&quot;:1,&quot;step&quot;:0.05,&quot;default&quot;:0.6,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Catch distribution&quot;},&quot;frameCount&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;min&quot;:100,&quot;max&quot;:50000,&quot;step&quot;:100,&quot;default&quot;:11420,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Catch distribution&quot;}}">
+const DUR = 2538;
+const fmt = s => {
+  s = Math.max(0, Math.round(s));
+  return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+};
+
+class Component extends DCLogic {
+  state = {
+    screen: "fleet",
+    t: 612,
+    playing: false,
+    rec: 0,
+    sel: 1,
+    draft: "",
+    flags: [
+      { t: 148, label: "Gear deployment", conf: "0.94", cam: "CAM 02", status: "REVIEWED" },
+      { t: 612, label: "Protected species — seabird", conf: "0.71", cam: "CAM 02", status: "PENDING" },
+      { t: 905, label: "Discard event", conf: "0.88", cam: "DECK", status: "PENDING" },
+      { t: 1320, label: "Camera obstruction", conf: "0.63", cam: "WINCH", status: "PENDING" },
+      { t: 1744, label: "Unidentified catch", conf: "0.79", cam: "CAM 02", status: "PENDING" },
+      { t: 2190, label: "Gear retrieval", conf: "0.96", cam: "WINCH", status: "REVIEWED" }
+    ],
+    comments: [
+      { t: 148, text: "Net over the side at 04:12 vessel time. Matches logbook.", author: "M. Okafor", when: "Today 09:14" },
+      { t: 905, text: "Two fish returned to water, species unclear at this resolution.", author: "M. Okafor", when: "Today 09:22" }
+    ]
+  };
+
+  componentDidMount() {
+    this.timer = setInterval(() => {
+      if (this.state.playing) this.setState(s => ({ t: Math.min(DUR, s.t + 1) }));
+    }, 1000);
+  }
+  componentWillUnmount() { clearInterval(this.timer); }
+
+  seek(t, i) { this.setState({ t, sel: i }); }
+
+  renderVals() {
+    const s = this.state;
+    const recs = [
+      { date: "Most recent", meta: "8 Aug · 42:18" },
+      { date: "6 Aug", meta: "Haul 1–4 · 51:02" },
+      { date: "2 Aug", meta: "Haul 1–3 · 38:47" },
+      { date: "28 Jul", meta: "Haul 1–6 · 1:12:30" }
+    ];
+    return {
+      isFleet: s.screen === "fleet",
+      isVessel: s.screen === "vessel",
+      goFleet: e => { e.preventDefault(); this.setState({ screen: "fleet" }); },
+      goVessel: e => { e.preventDefault(); this.setState({ screen: "vessel" }); },
+      kpis: [
+        { label: "Vessels reporting", value: "38 / 41", note: "3 cameras offline > 24 h" },
+        { label: "Footage awaiting review", value: "412 h", note: "+38 h since yesterday" },
+        { label: "Unreviewed AI flags", value: "167", note: "22 past the 7-day window" },
+        { label: "Est. catch this week", value: "1,284 t", note: "AI estimate across 96 hauls" }
+      ],
+      positions: [
+        { name: "KAITUNA STAR", x: "58%", y: "44%", dot: "var(--color-accent)" },
+        { name: "SOUTHERN DAWN", x: "31%", y: "68%", dot: "var(--color-accent)" },
+        { name: "AROHA II", x: "44%", y: "27%", dot: "color-mix(in srgb,var(--color-text) 35%,transparent)" },
+        { name: "TASMAN REACH", x: "20%", y: "38%", dot: "var(--color-accent)" },
+        { name: "MANAIA", x: "68%", y: "74%", dot: "color-mix(in srgb,var(--color-text) 12%,transparent)" }
+      ],
+      categories: [
+        { name: "Discard event", count: 61, pct: "100%" },
+        { name: "Protected species", count: 34, pct: "56%" },
+        { name: "Camera obstruction", count: 28, pct: "46%" },
+        { name: "Unidentified catch", count: 25, pct: "41%" },
+        { name: "Gear anomaly", count: 19, pct: "31%" }
+      ].map(c => ({ ...c, fill: "var(--color-accent)" })),
+      backlog: [
+        { day: "1d", count: 44, h: "42%" },
+        { day: "2d", count: 31, h: "30%" },
+        { day: "3d", count: 27, h: "26%" },
+        { day: "4d", count: 22, h: "21%" },
+        { day: "5d", count: 12, h: "12%" },
+        { day: "6d", count: 9, h: "9%" },
+        { day: "7d+", count: 22, h: "21%" }
+      ].map(b => ({ ...b, fill: b.day === "7d+" ? "var(--color-accent-800)" : "var(--color-accent)" })),
+      fleet: [
+        { name: "FV Kaituna Star", imo: "9284117", licence: "NZ-TR-4421", gear: "Bottom trawl", upload: "8 Aug 06:41", flags: "4 pending" },
+        { name: "FV Southern Dawn", imo: "9130882", licence: "NZ-TR-3098", gear: "Purse seine", upload: "8 Aug 05:12", flags: "2 pending" },
+        { name: "FV Aroha II", imo: "9455203", licence: "NZ-LL-1177", gear: "Bottom longline", upload: "7 Aug 22:03", flags: "9 pending" },
+        { name: "FV Tasman Reach", imo: "9367441", licence: "NZ-TR-2210", gear: "Mid-water trawl", upload: "7 Aug 19:55", flags: "0 pending" },
+        { name: "FV Manaia", imo: "9502776", licence: "NZ-PL-0884", gear: "Pot / trap", upload: "6 Aug 14:30", flags: "1 pending" }
+      ].map(v => ({ ...v, open: () => this.setState({ screen: "vessel" }) })),
+      recordings: recs.map((r, i) => ({
+        ...r,
+        bg: i === s.rec ? "var(--color-accent)" : "transparent",
+        fg: i === s.rec ? "var(--color-bg)" : "var(--color-text)",
+        open: () => this.setState({ rec: i, t: 0, playing: false })
+      })),
+      recordingLabel: recs[s.rec].date + " · " + recs[s.rec].meta,
+      camLabel: (s.cam || "CAM 02") + " / STARBOARD",
+      ...this.haulVals(),
+      atLabel: "AT " + fmt(s.t),
+      cams: ["CAM 02", "CAM 01", "DECK", "WINCH"].map(name => ({
+        name,
+        bg: (s.cam || "CAM 02") === name ? "var(--color-accent)" : "transparent",
+        fg: (s.cam || "CAM 02") === name ? "var(--color-bg)" : "var(--color-text)",
+        pick: () => this.setState({ cam: name })
+      })),
+      clock: "2026-08-08 04:" + String(12 + Math.floor(s.t / 60)).padStart(2, "0") + ":" + String(s.t % 60).padStart(2, "0"),
+      timeLabel: fmt(s.t),
+      durationLabel: fmt(DUR),
+      progressPct: (s.t / DUR) * 100 + "%",
+      playLabel: s.playing ? "Pause" : "Play",
+      togglePlay: () => this.setState(p => ({ playing: !p.playing })),
+      back10: () => this.setState(p => ({ t: Math.max(0, p.t - 10) })),
+      fwd10: () => this.setState(p => ({ t: Math.min(DUR, p.t + 10) })),
+      scrubClick: e => {
+        const r = e.currentTarget.getBoundingClientRect();
+        this.setState({ t: Math.round(((e.clientX - r.left) / r.width) * DUR) });
+      },
+      ticks: s.flags.map(f => ({ left: (f.t / DUR) * 100 + "%" })),
+      flags: s.flags.map((f, i) => ({
+        ...f,
+        timeLabel: fmt(f.t),
+        mark: f.status === "PENDING" ? "var(--color-accent)" : "color-mix(in srgb, var(--color-text) 20%, transparent)",
+        bg: i === s.sel ? "var(--color-accent-100)" : "transparent",
+        seek: () => this.seek(f.t, i)
+      })),
+      activeFlagLabel: s.flags[s.sel] ? "FLAG " + fmt(s.flags[s.sel].t) + " · " + s.flags[s.sel].label.toUpperCase() : "",
+      pendingLabel: s.flags.filter(f => f.status === "PENDING").length + " pending",
+      clearFlag: () => this.setState(p => ({ flags: p.flags.map((f, i) => i === p.sel ? { ...f, status: "REVIEWED" } : f) })),
+      escalateFlag: () => this.setState(p => ({ flags: p.flags.map((f, i) => i === p.sel ? { ...f, status: "ESCALATED" } : f) })),
+      draft: s.draft,
+      onDraft: e => this.setState({ draft: e.target.value }),
+      onDraftKey: e => { if (e.key === "Enter") this.addNote(); },
+      addComment: () => this.addNote(),
+      comments: [...s.comments].sort((a, b) => a.t - b.t).map((c, i) => ({
+        ...c,
+        timeLabel: fmt(c.t),
+        seek: e => { e.preventDefault(); this.setState({ t: c.t }); }
+      }))
+    };
+  }
+
+  haulVals() {
+    const p = this.props;
+    const unit = p.tempUnit ?? "°C";
+    const tC = p.seaTemp ?? 14.2;
+    const temp = unit === "°F" ? (tC * 9 / 5 + 32).toFixed(1) : tC.toFixed(1);
+    const raw = [
+      { name: "Hoki", pct: 46, weight: "1,840 kg", conf: "0.93" },
+      { name: "Silver warehou", pct: 24, weight: "960 kg", conf: "0.88" },
+      { name: "Ling", pct: 14, weight: "560 kg", conf: "0.81" },
+      { name: "Javelinfish", pct: 9, weight: "360 kg", conf: "0.64" },
+      { name: "Unclassified", pct: 7, weight: "280 kg", conf: "—" }
+    ];
+    return {
+      showHaul: p.showHaulContext ?? true,
+      showCatch: p.showCatchDistribution ?? true,
+      haulLabel: "HAUL 3 · " + (p.gearType ?? "Bottom trawl") + " · " + (p.season ?? "Winter 2026"),
+      haulSpecs: [
+        { label: "Fishing area", value: p.fishingArea ?? "Chatham Rise", note: p.statArea ?? "Statistical area 020" },
+        { label: "Sea surface temp", value: temp + unit, note: "Buoy CR-4, +0.6 vs 5-yr mean" },
+        { label: "Depth", value: (p.depth ?? 412) + " m", note: "Seabed contact 38 min" },
+        { label: "Season", value: p.season ?? "Winter 2026", note: "Quota year 2025/26" },
+        { label: "Set start", value: "04:12 NZST", note: "8 Aug 2026" },
+        { label: "Tow duration", value: "1 h 04 m", note: "3.1 kn average" },
+        { label: "Sea state", value: "2.4 m swell", note: "Wind SW 18 kn" },
+        { label: "Est. total catch", value: "4.0 t", note: "AI estimate, ±12%" }
+      ],
+      species: raw
+        .filter(r => r.conf === "—" || Number(r.conf) >= (p.minConfidence ?? 0.6))
+        .map(r => ({ ...r, pct: r.pct + "%", fill: r.name === "Unclassified" ? "color-mix(in srgb,var(--color-text) 30%,transparent)" : "var(--color-accent)" })),
+      frameCount: (p.frameCount ?? 11420).toLocaleString(),
+      coords: p.coords ?? "43° 28' S · 179° 51' E",
+      statArea: p.statArea ?? "Statistical area 020"
+    };
+  }
+
+  addNote() {
+    const text = this.state.draft.trim();
+    if (!text) return;
+    this.setState(p => ({
+      draft: "",
+      comments: [...p.comments, { t: p.t, text, author: "M. Okafor", when: "Just now" }]
+    }));
+  }
+}
+</script>
+</body>
+</html>
