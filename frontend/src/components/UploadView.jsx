@@ -14,7 +14,7 @@ export default function UploadView({ onRefreshFleet }) {
   
   // Detection Config
   const [modelName, setModelName] = useState('dolphin');
-  const [confidence, setConfidence] = useState(0.25);
+  const [confidence, setConfidence] = useState(0.15);
   
   // Status and Polling State
   const [processing, setProcessing] = useState(false);
