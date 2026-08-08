@@ -20,20 +20,37 @@ export function runDetectionTask(videoId, inputPath, outputPath, modelName = 'do
     current_count: 0
   };
 
-  // The root to put on sys.path, i.e. the directory that contains
-  // backend/detector.py. Resolved rather than hardcoded: the detector lives
-  // inside the repo on a clean checkout, but one level further up on setups
-  // where the repo was cloned into an outer project folder. Search both, and
-  // let DETECTOR_ROOT override when it is somewhere else entirely.
+  // The directory to put on sys.path — the one containing backend/detector.py,
+  // since that is what the generated script imports. Resolved by looking for
+  // the file rather than hardcoded, because it has lived in three different
+  // places: PythonScript/ in this repo, the repo root, and (on the original
+  // author's machine) an outer folder above the checkout. DETECTOR_ROOT wins
+  // when it is somewhere else again.
   const candidateRoots = [
     process.env.DETECTOR_ROOT,
+    path.resolve(BASE_DIR, '..', 'PythonScript'), // PythonScript/backend/detector.py
     path.resolve(BASE_DIR, '..'), // repo root — backend/detector.py
-    path.resolve(BASE_DIR, '..', '..'), // outer project folder
+    path.resolve(BASE_DIR, '..', '..'), // outer folder above the checkout
   ].filter(Boolean);
 
-  const projectRootDir =
-    candidateRoots.find((root) => fs.existsSync(path.join(root, 'backend', 'detector.py'))) ||
-    candidateRoots[1];
+  const detectorRoot = candidateRoots.find((root) =>
+    fs.existsSync(path.join(root, 'backend', 'detector.py'))
+  );
+
+  if (!detectorRoot) {
+    activeTasks[videoId] = {
+      status: 'failed',
+      progress: 100,
+      message:
+        'backend/detector.py was not found. Looked in: ' +
+        candidateRoots.join(', ') +
+        '. Set DETECTOR_ROOT to the directory that contains it.',
+      current_count: 0
+    };
+    return;
+  }
+
+  const projectRootDir = detectorRoot;
   
   // Python script execution to run detector.py
   const pythonScript = `

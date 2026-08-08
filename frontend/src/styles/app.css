@@ -1,6 +1,8 @@
 /* ---------------------------------------------------------------------------
-   Base + components. Everything the app renders is styled here or in a
-   route-level sheet — there are no inline style objects in this codebase.
+   Base + components. Everything reusable is styled here or in a route-level
+   sheet. Inline styles are reserved for values that are genuinely computed
+   at render time — scrubber and progress-bar widths, skeleton dimensions —
+   and for one-off nudges that would not earn a class.
 --------------------------------------------------------------------------- */
 
 @import './tokens.css';
@@ -873,4 +875,43 @@ table.data tbody tr:last-child td {
   text-align: right;
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
+}
+
+/* --- Layout utilities --------------------------------------------------- */
+
+/* A main column beside a narrower aside. Used by the vessel record, reports
+   and ingest pages, which all share this shape. */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.split-wide {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+}
+
+@media (max-width: 1000px) {
+  .split,
+  .split-wide {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Rows in a reference table that are read, not opened. */
+table.data tbody tr.static-row {
+  cursor: default;
+}
+table.data tbody tr.static-row:hover {
+  background: transparent;
+}
+
+/* Paragraphs inside cards and panels are laid out by their container's gap,
+   so they carry no margin of their own. */
+.card-body p,
+.ws-section p,
+.state p,
+.det-resolved p {
+  margin: 0;
 }

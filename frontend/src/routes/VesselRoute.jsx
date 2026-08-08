@@ -108,14 +108,7 @@ export default function VesselRoute() {
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)',
-          gap: 'var(--space-4)',
-          alignItems: 'start',
-        }}
-      >
+      <div className="split">
         <div className="col">
           <div className="card">
             <div className="card-head">
@@ -147,7 +140,7 @@ export default function VesselRoute() {
                   </thead>
                   <tbody>
                     {recordings.data.map((r) => (
-                      <tr key={r.id} style={{ cursor: 'default' }}>
+                      <tr key={r.id} className="static-row">
                         <td className="cell-strong">{formatDate(r.recording_date)}</td>
                         <td className="cell-muted mono-time">
                           {String(r.start_time).slice(0, 5)}–{String(r.end_time).slice(0, 5)}
@@ -195,7 +188,7 @@ export default function VesselRoute() {
                   </thead>
                   <tbody>
                     {audit.data.map((a) => (
-                      <tr key={a.id} style={{ cursor: 'default' }}>
+                      <tr key={a.id} className="static-row">
                         <td className="cell-muted">{formatDateTime(a.created_at)}</td>
                         <td>
                           <span className="badge badge-neutral">{a.action.replace(/_/g, ' ')}</span>
@@ -232,14 +225,14 @@ export default function VesselRoute() {
               {/* The role genuinely cannot do this, so the control is disabled
                   with the reason stated — not hidden, and not a dead button. */}
               {!session.can.submitVesselReview ? (
-                <p className="field-hint" style={{ margin: 0 }}>
+                <p className="field-hint">
                   {session.role} can record flag determinations but cannot sign off a vessel
                   review. Ask a Grade 3 reviewer to submit.
                 </p>
               ) : null}
 
               {submitReview.isError ? (
-                <p className="field-error" role="alert" style={{ margin: 0 }}>
+                <p className="field-error" role="alert">
                   Not saved: {submitReview.error.message}
                 </p>
               ) : null}

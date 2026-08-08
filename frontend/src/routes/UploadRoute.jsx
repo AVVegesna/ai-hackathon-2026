@@ -8,9 +8,9 @@ import { EmptyState, ErrorState, Skeleton } from '../components/ui/States'
 // Upload footage and run automated detection over it. Detection is a triage
 // aid that proposes flags — a reviewer still makes every determination.
 //
-// The detector currently fails on this checkout (backend/detector.py is not
-// present), so the failure path is treated as a first-class state rather than
-// an afterthought: it says what is missing and what still works.
+// Detection depends on a Python model that may not be installed, so the
+// failure path is treated as a first-class state rather than an afterthought:
+// it reports the backend's own reason and says what still works without it.
 
 const POLL_MS = 900
 const TERMINAL = ['completed', 'failed']
@@ -99,14 +99,7 @@ export default function UploadRoute() {
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) minmax(280px, 380px)',
-          gap: 'var(--space-4)',
-          alignItems: 'start',
-        }}
-      >
+      <div className="split split-wide">
         <div className="col">
           {/* Drop zone */}
           <div
@@ -234,7 +227,7 @@ export default function UploadRoute() {
                           </thead>
                           <tbody>
                             {result.dolphin_events.slice(0, 10).map((ev, i) => (
-                              <tr key={i} style={{ cursor: 'default' }}>
+                              <tr key={i} className="static-row">
                                 <td className="mono-time">{timecode(ev.timestamp)}</td>
                                 <td>{ev.count}</td>
                               </tr>
@@ -243,7 +236,7 @@ export default function UploadRoute() {
                         </table>
                       </div>
                     ) : null}
-                    <p style={{ margin: 0 }}>
+                    <p>
                       <Link to="/queue">Review the flags this raised →</Link>
                     </p>
                   </div>

@@ -54,14 +54,7 @@ export default function ReportsRoute() {
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 2fr) minmax(260px, 1fr)',
-          gap: 'var(--space-4)',
-          alignItems: 'start',
-        }}
-      >
+      <div className="split">
         <div className="card record-marks">
           <div className="card-head">
             <h2>Audit trail</h2>
@@ -95,7 +88,7 @@ export default function ReportsRoute() {
                 </thead>
                 <tbody>
                   {rows.map((a) => (
-                    <tr key={a.id} style={{ cursor: 'default' }}>
+                    <tr key={a.id} className="static-row">
                       <td className="cell-muted">{formatDateTime(a.created_at)}</td>
                       <td>
                         <span className="badge badge-neutral">{a.action.replace(/_/g, ' ')}</span>

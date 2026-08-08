@@ -313,7 +313,7 @@ export default function ReviewRoute() {
             </div>
             <div className="card-body">
               <div style={{ fontWeight: 600, marginBottom: 4 }}>{f.flag_type}</div>
-              <p style={{ margin: 0, color: 'var(--ink-2)' }}>
+              <p style={{ color: 'var(--ink-2)' }}>
                 {f.description || 'No description was recorded when this flag was raised.'}
               </p>
               <ul className="meta-list" style={{ marginTop: 'var(--space-3)' }}>
@@ -346,7 +346,7 @@ export default function ReviewRoute() {
                   <StatusBadge flag={f} /> by {f.resolved_by}
                 </div>
                 <div className="muted">{formatDateTime(f.resolved_at)}</div>
-                {f.resolution ? <p style={{ margin: 0 }}>{f.resolution}</p> : null}
+                {f.resolution ? <p>{f.resolution}</p> : null}
                 <p className="muted" style={{ margin: 0, fontSize: 11 }}>
                   Records are append-only. Raise a new flag if this needs revisiting.
                 </p>
@@ -393,13 +393,13 @@ export default function ReviewRoute() {
                 </div>
 
                 {validation ? (
-                  <p className="field-error" role="alert" style={{ margin: 0 }}>
+                  <p className="field-error" role="alert">
                     {validation}
                   </p>
                 ) : null}
 
                 {resolve.isError ? (
-                  <p className="field-error" role="alert" style={{ margin: 0 }}>
+                  <p className="field-error" role="alert">
                     Not saved: {resolve.error.message}
                   </p>
                 ) : null}
