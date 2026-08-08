@@ -69,6 +69,8 @@ export const api = {
 
   audit: (params) => request(`/audit${qs(params)}`),
 
+  fleetOverview: () => request('/fleet/overview'),
+
   videos: () => request('/videos'),
   detectionStatus: (videoId) => request(`/status/${videoId}`),
   detectionResults: (videoId) => request(`/results/${videoId}`),

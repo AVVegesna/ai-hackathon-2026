@@ -68,9 +68,26 @@ export function createRecording(data) {
 //
 // Idempotent on media_url, so re-running detection over the same upload reuses
 // the recording instead of creating a duplicate each time.
-export async function getOrCreateRecordingForUpload({ videoId, mediaUrl, vesselId, durationSeconds }) {
+export async function getOrCreateRecordingForUpload({
+  videoId,
+  mediaUrl,
+  processedMediaUrl,
+  vesselId,
+  durationSeconds
+}) {
   const existing = await get(`SELECT * FROM recordings WHERE media_url = ?`, [mediaUrl]);
-  if (existing) return existing;
+  if (existing) {
+    // A re-run produces a fresh annotated render and may now be attributed to a
+    // vessel, so refresh those on the existing row instead of leaving it stale.
+    await run(
+      `UPDATE recordings
+          SET processed_media_url = COALESCE(?, processed_media_url),
+              vessel_id = COALESCE(?, vessel_id)
+        WHERE id = ?`,
+      [processedMediaUrl || null, vesselId || null, existing.id]
+    );
+    return get(`SELECT * FROM recordings WHERE id = ?`, [existing.id]);
+  }
 
   // Uploads carry no vessel of their own. Rather than attribute footage to an
   // arbitrary real vessel, park it against a clearly-labelled holding record
@@ -94,9 +111,9 @@ export async function getOrCreateRecordingForUpload({ videoId, mediaUrl, vesselI
   const { id } = await run(
     `INSERT INTO recordings
        (vessel_id, recording_date, start_time, end_time, duration_minutes,
-        cameras_count, hauls_count, status, media_url)
-     VALUES (?, date('now'), time('now'), time('now'), ?, 1, 1, 'active', ?)`,
-    [vessel_id, minutes, mediaUrl]
+        cameras_count, hauls_count, status, media_url, processed_media_url)
+     VALUES (?, date('now'), time('now'), time('now'), ?, 1, 1, 'active', ?, ?)`,
+    [vessel_id, minutes, mediaUrl, processedMediaUrl || null]
   );
 
   return get(`SELECT * FROM recordings WHERE id = ?`, [id]);

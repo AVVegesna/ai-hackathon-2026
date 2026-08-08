@@ -3,14 +3,18 @@
 import db, { initializeDatabase, migrateDatabase, run } from './database.js';
 
 
+// Positions are SAMPLE data, not AIS. They are plausible working grounds inside
+// the NZ EEZ so the fleet map has something to draw, and every row records
+// position_source: 'sample' so the UI can say so plainly. When a real feed is
+// connected it should write 'ais' and the map caveat disappears on its own.
 const seedVessels = [
-  { name: 'FV Kaituna Star', imo: '9284117', licence: 'NZ-TR-4421', gear: 'Bottom trawl', captain: 'James Smith', crew_count: 8 },
-  { name: 'FV Ocean Wave', imo: '9275432', licence: 'NZ-TR-4389', gear: 'Pelagic trawl', captain: 'Robert Johnson', crew_count: 10 },
-  { name: 'FV Sea Hunter', imo: '9198765', licence: 'NZ-TR-4156', gear: 'Longliner', captain: 'Michael Chen', crew_count: 6 },
-  { name: 'FV Trawler 2', imo: '9654321', licence: 'NZ-TR-3892', gear: 'Bottom trawl', captain: 'David Williams', crew_count: 9 },
-  { name: 'FV Port Vessel', imo: '9876543', licence: 'NZ-TR-2101', gear: 'Seine', captain: 'Sarah Wilson', crew_count: 7 },
-  { name: 'FV Pacific Dream', imo: '9123456', licence: 'NZ-TR-4500', gear: 'Demersal trawl', captain: 'Emma Brown', crew_count: 8 },
-  { name: 'FV Southern Breeze', imo: '9345678', licence: 'NZ-TR-4501', gear: 'Bottom trawl', captain: 'Thomas Anderson', crew_count: 7 },
+  { name: 'FV Kaituna Star', imo: '9284117', licence: 'NZ-TR-4421', gear: 'Bottom trawl', captain: 'James Smith', crew_count: 8 , latitude: -41.62, longitude: 174.55, activity: 'fishing' },
+  { name: 'FV Ocean Wave', imo: '9275432', licence: 'NZ-TR-4389', gear: 'Pelagic trawl', captain: 'Robert Johnson', crew_count: 10 , latitude: -43.9, longitude: 173.3, activity: 'fishing' },
+  { name: 'FV Sea Hunter', imo: '9198765', licence: 'NZ-TR-4156', gear: 'Longliner', captain: 'Michael Chen', crew_count: 6 , latitude: -36.55, longitude: 175.35, activity: 'transit' },
+  { name: 'FV Trawler 2', imo: '9654321', licence: 'NZ-TR-3892', gear: 'Bottom trawl', captain: 'David Williams', crew_count: 9 , latitude: -46.35, longitude: 167.2, activity: 'fishing' },
+  { name: 'FV Port Vessel', imo: '9876543', licence: 'NZ-TR-2101', gear: 'Seine', captain: 'Sarah Wilson', crew_count: 7 , latitude: -41.29, longitude: 174.78, activity: 'in_port' },
+  { name: 'FV Pacific Dream', imo: '9123456', licence: 'NZ-TR-4500', gear: 'Demersal trawl', captain: 'Emma Brown', crew_count: 8 , latitude: -38.95, longitude: 177.95, activity: 'fishing' },
+  { name: 'FV Southern Breeze', imo: '9345678', licence: 'NZ-TR-4501', gear: 'Bottom trawl', captain: 'Thomas Anderson', crew_count: 7 , latitude: -44.75, longitude: 170.95, activity: 'transit' },
 ];
 
 // The one clip we actually hold media for. Everything else is metadata only,
@@ -75,8 +79,13 @@ async function seedDatabase() {
     console.log('🚢 Adding vessels...');
     for (const vessel of seedVessels) {
       const { id } = await run(
-        'INSERT INTO vessels (name, imo, licence, gear, captain, crew_count, status, last_ais_ping) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
-        [vessel.name, vessel.imo, vessel.licence, vessel.gear, vessel.captain, vessel.crew_count, 'active']
+        `INSERT INTO vessels
+           (name, imo, licence, gear, captain, crew_count, status, last_ais_ping,
+            latitude, longitude, activity, position_source)
+         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'sample')`,
+        [vessel.name, vessel.imo, vessel.licence, vessel.gear, vessel.captain,
+         vessel.crew_count, 'active', vessel.latitude ?? null,
+         vessel.longitude ?? null, vessel.activity ?? null]
       );
       vesselIds.push(id);
     }

@@ -25,6 +25,7 @@ const SYNC_TOLERANCE = 0.25 // seconds of drift before a follower is corrected
 const VideoPlayer = forwardRef(function VideoPlayer(
   {
     mediaUrl,
+    processedMediaUrl,
     camerasCount = 1,
     flags = [],
     activeFlagId,
@@ -44,6 +45,11 @@ const VideoPlayer = forwardRef(function VideoPlayer(
   const [gridMode, setGridMode] = useState(false)
   const [camera, setCamera] = useState(0)
   const [mediaError, setMediaError] = useState(false)
+  // Which render to show. The annotated copy is the default because it answers
+  // "what did the model see"; the original is the evidence, one click away.
+  const [source, setSource] = useState(processedMediaUrl ? 'processed' : 'original')
+
+  const activeUrl = source === 'processed' && processedMediaUrl ? processedMediaUrl : mediaUrl
 
   // One entry per camera the recording claims. We only hold footage for the
   // first; the rest render as explicitly empty panes rather than repeating
@@ -53,12 +59,12 @@ const VideoPlayer = forwardRef(function VideoPlayer(
       Array.from({ length: Math.max(1, camerasCount) }, (_, i) => ({
         index: i,
         label: `CAM ${i + 1}`,
-        src: i === 0 ? mediaUrl || null : null,
+        src: i === 0 ? activeUrl || null : null,
       })),
-    [camerasCount, mediaUrl]
+    [camerasCount, activeUrl]
   )
 
-  const hasMedia = Boolean(mediaUrl) && !mediaError
+  const hasMedia = Boolean(activeUrl) && !mediaError
 
   const clamp = useCallback(
     (t) => Math.min(Math.max(t, 0), duration || 0),
@@ -145,11 +151,16 @@ const VideoPlayer = forwardRef(function VideoPlayer(
       v.removeEventListener('pause', onPause)
       v.removeEventListener('error', onError)
     }
-  }, [mediaUrl, gridMode, camera])
+  }, [activeUrl, gridMode, camera])
 
   useEffect(() => {
     setMediaError(false)
-  }, [mediaUrl])
+  }, [activeUrl])
+
+  // If a re-run adds an annotated render while the original is showing, adopt it.
+  useEffect(() => {
+    if (processedMediaUrl) setSource('processed')
+  }, [processedMediaUrl])
 
   const seekFromPointer = useCallback(
     (clientX) => {
@@ -322,6 +333,28 @@ const VideoPlayer = forwardRef(function VideoPlayer(
         </span>
 
         <div className="transport-end">
+          {processedMediaUrl ? (
+            <div className="chips" role="group" aria-label="Video source">
+              <button
+                type="button"
+                className="chip"
+                aria-pressed={source === 'processed'}
+                onClick={() => setSource('processed')}
+                title="Detector output, with detected species boxed"
+              >
+                Detections
+              </button>
+              <button
+                type="button"
+                className="chip"
+                aria-pressed={source === 'original'}
+                onClick={() => setSource('original')}
+                title="Original footage as uploaded — the evidentiary copy"
+              >
+                Original
+              </button>
+            </div>
+          ) : null}
           <button
             type="button"
             className="btn btn-sm"
