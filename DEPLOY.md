@@ -4,7 +4,7 @@ The portal deploys as **one Docker web service**. A single Express process serve
 the built React bundle, the JSON API, and uploaded media.
 
 **Detection is off by default.** The deployed image is Node-only: 375MB, builds in
-about a minute, runs on `starter`. Upload and playback work; the app reports that
+about a minute, runs on the **free** plan. Upload and playback work; the app reports that
 detection was **not run**, rather than reporting a clean result it never computed.
 Turning the detector on costs a 3.76GB image and a 4GB plan — see
 [Turning detection on](#turning-detection-on).
@@ -14,7 +14,7 @@ Turning the detector on costs a 3.76GB image and a 4GB plan — see
 1. Push this branch to GitHub.
 2. Render Dashboard → **New** → **Blueprint** → select the repo.
 3. Render reads [`render.yaml`](render.yaml) and creates the `fisheries-portal`
-   service with its disk. Click **Apply**.
+   service. Click **Apply**.
 
 Build takes about a minute. `autoDeploy` is off in the blueprint, so pushes don't
 redeploy on their own — flip it to `true` in the dashboard if you want that.
@@ -86,23 +86,39 @@ footage, and demo with short clips.
 | `SEED_ON_START` | `true` | Seed demo data when the database is empty. `false` to leave it blank. |
 | `VITE_API_BASE_URL` | _(empty)_ | Build-time. Leave empty for same-origin. Only needed if the frontend is hosted apart from the API. |
 
-## State and the disk
+## State is ephemeral on free
 
-Render container filesystems are ephemeral — anything written outside a mounted
-disk is gone on the next deploy. The blueprint mounts a 5GB disk at `/var/data`
-and points the database, uploads, and results at it.
+Render container filesystems don't persist, and the free plan cannot mount a
+disk. So on this setup:
 
-Two consequences worth knowing:
+- **The database is rebuilt on every boot.** `SEED_ON_START` seeds when the
+  `vessels` table is empty, which without a disk is every time. That is what keeps
+  the demo populated — no manual step.
+- **Uploaded clips don't survive** a redeploy, a manual restart, or waking from the
+  free plan's ~15 minute idle sleep. Re-upload during a demo.
+- **First request after sleep is slow** — the container cold-starts.
 
-- **A disk pins the service to one instance.** Render cannot horizontally scale a
-  service with a mounted disk. That is fine here: SQLite and the in-memory
-  `activeTasks` detection registry both assume a single process anyway.
-- **Uploaded video accumulates.** Nothing prunes `/var/data`. Watch the disk on a
-  long-lived deployment.
+### Keeping state
 
-Seeding only runs when the `vessels` table is empty, so a redeploy against an
-existing disk keeps whatever is already there. `npm run seed` run by hand is
-still destructive — it clears all four tables first.
+Add a disk and move to a paid plan. In `render.yaml`:
+
+```yaml
+    plan: starter
+    disk:
+      name: portal-data
+      mountPath: /var/data
+      sizeGB: 1
+```
+
+No env changes needed — `DATA_DIR`, `UPLOADS_DIR` and `RESULTS_DIR` already point
+at `/var/data`, so the mount just starts persisting what is already written there.
+Two things follow: a disk pins the service to one instance (fine — SQLite and the
+in-memory `activeTasks` registry both assume a single process), and uploaded video
+accumulates with nothing pruning it.
+
+With a disk, seeding stops firing on every boot and a redeploy keeps whatever is
+already there. `npm run seed` by hand stays destructive — it clears the tables
+first.
 
 ## Before you hand out the URL
 
@@ -113,8 +129,8 @@ has a public address:
 - **No authentication.** Every route, including upload and the audit data, is open
   to anyone with the URL. Render has no built-in access control on web services.
 - **No upload size limit.** `multer` is configured without `limits`, so a single
-  large file can fill the 5GB disk and take the service down with it. Nothing
-  prunes old uploads either.
+  large file can fill the container's filesystem and take the service down with
+  it. Nothing prunes old uploads either.
 
 For a hackathon demo behind a URL you don't publish, both are fine. For anything
 else, fix them before sharing.
