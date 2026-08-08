@@ -4,3 +4,15 @@ node_modules/
 .env
 .env.local
 backend/data/
+.venv/
+__pycache__/
+*.pyc
+PythonScript/weights/
+PythonScript/models/
+uploads/
+results/
+*.pt
+*.bin
+*.onnx
+*.mp4
+*.avi
